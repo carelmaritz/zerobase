@@ -1,0 +1,13 @@
+{# Response to an inline assignment edit: swaps in every figure that may have changed. #}
+{% from "_macros.html" import num, rta %}
+{{ rta(view, oob=True) }}
+{% for block in view.groups %}
+  {% for line in block.lines %}
+    {{ num("act-" ~ line.category.id, line.activity, oob=True) }}
+    {{ num("avail-" ~ line.category.id, line.available, oob=True, pill=True) }}
+  {% endfor %}
+  {{ num("g" ~ block.group.id ~ "-assigned", block.assigned, oob=True) }}
+  {{ num("g" ~ block.group.id ~ "-activity", block.activity, oob=True) }}
+  {{ num("g" ~ block.group.id ~ "-available", block.available, oob=True) }}
+{% endfor %}
+<div id="flash" role="alert" hx-swap-oob="true">{% if error %}<p class="error">{{ error }}</p>{% endif %}</div>

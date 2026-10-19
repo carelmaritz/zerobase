@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block content %}
+<h1>Accounts</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if accounts %}
+<table class="list">
+  <thead><tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Counts toward</th><th scope="col" class="r">Balance</th></tr></thead>
+  <tbody>
+    {% for account, balance in accounts %}
+    <tr>
+      <th scope="row"><a href="/transactions?account_id={{ account.id }}">{{ account.name }}</a></th>
+      <td>{{ kinds.get(account.kind, "Other") }}</td>
+      <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
+      <td class="r">{{ balance|money }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="notice">Add your first account to start budgeting. Its opening balance becomes money you can assign.</p>
+{% endif %}
+
+<section class="card">
+  <h2>Add an account</h2>
+  <form method="post" action="/accounts" class="grid-form">
+    <label>Name <input type="text" name="name" maxlength="80" required placeholder="Current account"></label>
+    <label>Type
+      <select name="kind">
+        {% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Opening balance <input type="text" inputmode="decimal" name="opening_balance" placeholder="0.00" autocomplete="off"></label>
+    <label class="check"><input type="checkbox" name="on_budget" value="1" checked> Budget account <small class="muted">(untick for balance-only tracking, e.g. a mortgage)</small></label>
+    <button type="submit" class="primary">Add account</button>
+  </form>
+</section>
+{% endblock %}

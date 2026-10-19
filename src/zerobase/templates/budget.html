@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import num, rta %}
+{% block title %}Budget{% endblock %}
+{% block content %}
+<div class="month-nav">
+  <a href="/budget?month={{ prev_month }}" aria-label="Previous month">&lsaquo;</a>
+  <h1>{{ month_label }}</h1>
+  <a href="/budget?month={{ next_month }}" aria-label="Next month">&rsaquo;</a>
+</div>
+
+<div id="flash" role="alert">{% if error %}<p class="error">{{ error }}</p>{% endif %}</div>
+
+{{ rta(view) }}
+
+{% if view.uncategorised_count %}
+<p class="notice">
+  {{ view.uncategorised_count }} uncategorised outflow{{ "" if view.uncategorised_count == 1 else "s" }}
+  ({{ (-view.uncategorised_total)|money }}) not in any envelope yet.
+  <a href="/transactions">Categorise {{ "it" if view.uncategorised_count == 1 else "them" }}</a>.
+</p>
+{% endif %}
+
+<table class="budget">
+  <thead>
+    <tr><th scope="col">Category</th><th scope="col" class="r">Assigned</th><th scope="col" class="r">Activity</th><th scope="col" class="r">Available</th></tr>
+  </thead>
+  {% for block in view.groups %}
+  <tbody>
+    <tr class="group">
+      <th scope="rowgroup">{{ block.group.name }}</th>
+      <td class="r">{{ num("g" ~ block.group.id ~ "-assigned", block.assigned) }}</td>
+      <td class="r">{{ num("g" ~ block.group.id ~ "-activity", block.activity) }}</td>
+      <td class="r">{{ num("g" ~ block.group.id ~ "-available", block.available) }}</td>
+    </tr>
+    {% for line in block.lines %}
+    <tr>
+      <th scope="row">{{ line.category.name }}</th>
+      <td class="r">
+        <form class="assign" method="post" action="/budget/assign"
+              hx-post="/budget/assign" hx-trigger="change, submit" hx-swap="none">
+          <input type="hidden" name="category_id" value="{{ line.category.id }}">
+          <input type="hidden" name="month" value="{{ month_key }}">
+          <input class="amt" type="text" inputmode="decimal" name="amount" autocomplete="off"
+                 value="{{ line.assigned|plain }}" aria-label="Assigned to {{ line.category.name }}">
+        </form>
+      </td>
+      <td class="r">{{ num("act-" ~ line.category.id, line.activity) }}</td>
+      <td class="r">{{ num("avail-" ~ line.category.id, line.available, pill=True) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="add-row">
+      <td colspan="4">
+        <form class="inline-form" method="post" action="/budget/categories">
+          <input type="hidden" name="month" value="{{ month_key }}">
+          <input type="hidden" name="group_id" value="{{ block.group.id }}">
+          <input type="text" name="name" maxlength="60" placeholder="Add a category to {{ block.group.name }}" aria-label="New category in {{ block.group.name }}" required>
+          <button type="submit">Add</button>
+        </form>
+      </td>
+    </tr>
+  </tbody>
+  {% endfor %}
+</table>
+
+<form class="inline-form new-group" method="post" action="/budget/groups">
+  <input type="hidden" name="month" value="{{ month_key }}">
+  <input type="text" name="name" maxlength="60" placeholder="New category group" aria-label="New category group" required>
+  <button type="submit">Add group</button>
+</form>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_macros.html" import category_options %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<h1>Transactions</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if not accounts %}
+<p class="notice">Add an <a href="/accounts">account</a> before recording transactions.</p>
+{% else %}
+<section class="card">
+  <h2>Add a transaction</h2>
+  <form method="post" action="/transactions" class="grid-form">
+    <label>Account
+      <select name="account_id" required>
+        {% for account in accounts %}
+        <option value="{{ account.id }}"{% if account.id == account_id %} selected{% endif %}>{{ account.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Date <input type="date" name="when" value="{{ today }}" required></label>
+    <label>Payee <input type="text" name="payee" maxlength="100"></label>
+    <label>Category <select name="category_id">{{ category_options(categories) }}</select></label>
+    <label>Memo <input type="text" name="memo" maxlength="255"></label>
+    <label>Outflow <input type="text" inputmode="decimal" name="outflow" placeholder="0.00" autocomplete="off"></label>
+    <label>Inflow <input type="text" inputmode="decimal" name="inflow" placeholder="0.00" autocomplete="off"></label>
+    <button type="submit" class="primary">Add</button>
+  </form>
+  <p class="muted">Leave the category as Uncategorised for income: it goes to Ready to Assign.</p>
+</section>
+
+<p class="filters">
+  Show:
+  <a href="/transactions"{% if account_id is none %} aria-current="true"{% endif %}>All accounts</a>
+  {% for account in accounts %}
+  <a href="/transactions?account_id={{ account.id }}"{% if account.id == account_id %} aria-current="true"{% endif %}>{{ account.name }}</a>
+  {% endfor %}
+</p>
+{% endif %}
+
+{% if transactions %}
+<table class="list">
+  <thead>
+    <tr>
+      <th scope="col">Date</th><th scope="col">Account</th><th scope="col">Payee</th>
+      <th scope="col">Category</th><th scope="col">Memo</th>
+      <th scope="col" class="r">Outflow</th><th scope="col" class="r">Inflow</th><th scope="col"><span class="sr-only">Actions</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in transactions %}
+    <tr>
+      <td>{{ t.date.isoformat() }}</td>
+      <td>{{ t.account.name }}</td>
+      <td>{{ t.payee }}</td>
+      <td>
+        {% if t.account.on_budget %}
+        <form method="post" action="/transactions/{{ t.id }}/category"
+              hx-post="/transactions/{{ t.id }}/category" hx-trigger="change" hx-swap="none">
+          <select name="category_id" aria-label="Category for {{ t.payee or 'transaction' }}">{{ category_options(categories, t.category_id) }}</select>
+          <noscript><button type="submit">Save</button></noscript>
+        </form>
+        {% else %}<span class="muted">Tracking</span>{% endif %}
+      </td>
+      <td>{{ t.memo }}</td>
+      <td class="r">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>
+      <td class="r">{% if t.amount > 0 %}{{ t.amount|money }}{% endif %}</td>
+      <td>
+        <form method="post" action="/transactions/{{ t.id }}/delete">
+          <button class="link danger" type="submit" aria-label="Delete transaction">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if transactions|length >= page_size %}<p class="muted">Showing the latest {{ page_size }} transactions.</p>{% endif %}
+{% elif accounts %}
+<p class="muted">No transactions yet.</p>
+{% endif %}
+{% endblock %}

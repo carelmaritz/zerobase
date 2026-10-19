@@ -1,0 +1,60 @@
+# Zerobase: app + PostgreSQL, with an optional Caddy reverse proxy (TLS).
+#
+#   cp .env.example .env      # then fill in the two secrets
+#   docker compose up -d --build
+#
+# With HTTPS via Caddy:  docker compose --profile proxy up -d --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zerobase
+      POSTGRES_USER: zerobase
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zerobase -d zerobase"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ZEROBASE_DATABASE_URL: postgresql+psycopg://zerobase:${POSTGRES_PASSWORD}@db:5432/zerobase
+      ZEROBASE_SECRET_KEY: ${ZEROBASE_SECRET_KEY:?Set ZEROBASE_SECRET_KEY in .env}
+      ZEROBASE_ALLOW_REGISTRATION: ${ZEROBASE_ALLOW_REGISTRATION:-false}
+      ZEROBASE_CURRENCY_SYMBOL: ${ZEROBASE_CURRENCY_SYMBOL:-£}
+      ZEROBASE_HTTPS_ONLY: ${ZEROBASE_HTTPS_ONLY:-false}
+    ports:
+      # Loopback by default. Set ZEROBASE_BIND=0.0.0.0 to reach it from your LAN over plain
+      # HTTP, or use the `proxy` profile below for HTTPS.
+      - "${ZEROBASE_BIND:-127.0.0.1}:${ZEROBASE_PORT:-8000}:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      ZEROBASE_DOMAIN: ${ZEROBASE_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

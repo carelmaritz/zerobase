@@ -1,0 +1,32 @@
+{% macro tone(v) %}{% if v < 0 %}neg{% elif v == 0 %}zero{% else %}pos{% endif %}{% endmacro %}
+
+{# A money figure in a span. With oob=True it replaces the span with the same id in the page. #}
+{% macro num(id, value, oob=False, pill=False) -%}
+<span id="{{ id }}" class="num {{ 'pill ' if pill }}{{ tone(value) }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ value|money }}</span>
+{%- endmacro %}
+
+{% macro rta(view, oob=False) -%}
+<div id="rta" class="rta {{ tone(view.ready_to_assign) }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <strong>{{ view.ready_to_assign|money }}</strong>
+  <span>
+    {%- if view.ready_to_assign < 0 %} Over-assigned: reduce an assignment or add income
+    {%- elif view.ready_to_assign == 0 %} All money assigned
+    {%- else %} Ready to Assign{% endif -%}
+  </span>
+</div>
+{%- endmacro %}
+
+{# <option>s for a category <select>. `categories` is a list of (Category, CategoryGroup). #}
+{% macro category_options(categories, selected_id=None) -%}
+<option value="">Uncategorised</option>
+{%- set ns = namespace(group=None) %}
+{%- for cat, grp in categories %}
+  {%- if ns.group != grp.id %}
+    {%- if ns.group is not none %}</optgroup>{% endif %}
+    <optgroup label="{{ grp.name }}">
+    {%- set ns.group = grp.id %}
+  {%- endif %}
+  <option value="{{ cat.id }}"{% if cat.id == selected_id %} selected{% endif %}>{{ cat.name }}</option>
+{%- endfor %}
+{%- if ns.group is not none %}</optgroup>{% endif %}
+{%- endmacro %}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false}'>
+  <title>{% block title %}Zerobase{% endblock %} · Zerobase</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+</head>
+<body>
+  {% if user %}
+  <header class="topbar">
+    <a class="brand" href="/budget">Zerobase</a>
+    <nav aria-label="Main">
+      <a href="/budget"{% if active == "budget" %} aria-current="page"{% endif %}>Budget</a>
+      <a href="/accounts"{% if active == "accounts" %} aria-current="page"{% endif %}>Accounts</a>
+      <a href="/transactions"{% if active == "transactions" %} aria-current="page"{% endif %}>Transactions</a>
+    </nav>
+    <form method="post" action="/logout"><button class="link" type="submit">Sign out</button></form>
+  </header>
+  {% endif %}
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

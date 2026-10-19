@@ -1,0 +1,11 @@
+# Reverse proxy with automatic HTTPS.
+#
+# ZEROBASE_DOMAIN decides how certificates are obtained:
+#   * a public DNS name pointing at this host -> Let's Encrypt (ports 80/443 must be reachable)
+#   * "localhost" or a private name            -> Caddy's own internal CA (browsers will warn
+#                                                 until you trust Caddy's root certificate)
+# For a LAN-only name with a certificate from your own CA, add a `tls /path/cert /path/key` line.
+{$ZEROBASE_DOMAIN:localhost} {
+	encode zstd gzip
+	reverse_proxy app:8000
+}
