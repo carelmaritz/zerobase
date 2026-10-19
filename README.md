@@ -49,6 +49,8 @@ By default the app only listens on `127.0.0.1`. Pick one:
 
 ## Running it on Proxmox
 
+A full step-by-step runbook (VM setup, Docker, HTTPS options, backups, updates, troubleshooting) is in **[DEPLOYMENT.md](DEPLOYMENT.md)**. In short:
+
 A small **VM** (1 vCPU, 1-2 GB RAM, a few GB of disk) running Debian or Ubuntu with Docker is the lowest-friction option, and Proxmox backups of the whole VM cover your data. An **LXC** container also works if you enable `nesting=1` and `keyctl=1` in its options so Docker can run inside it.
 
 Whatever you choose:
