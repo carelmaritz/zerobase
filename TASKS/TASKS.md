@@ -1,6 +1,6 @@
 # Zerobase Task Tracking
 
-This document tracks all tasks for the Zerobase project. Each task has a unique ID and corresponding detailed task file in `TASKS/`.
+This document tracks all tasks for the Zerobase project. Each task has a unique ID and corresponding detailed task file alongside this index in the `TASKS/` folder.
 
 ---
 
