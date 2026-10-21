@@ -3,7 +3,7 @@
 A self-hosted, web-based budgeting app built on zero-based (envelope) budgeting: give every pound a job.
 It is a small, open-source take on the YNAB method that you run yourself, on your own hardware, with your data in your own PostgreSQL database.
 
-> **Status: early (v0.1).** The core budgeting loop works, but this is a fresh scaffold. See [What works today](#what-works-today) and the [roadmap](#roadmap) before you trust it with real money. There are **no database migrations yet**, so do not rely on upgrading an existing install in place until they land.
+> **Status: early (v0.1).** The core budgeting loop works, but this is a fresh scaffold. See [What works today](#what-works-today) and the [roadmap](#roadmap) before you trust it with real money.
 
 ## How it works
 
@@ -91,6 +91,20 @@ ZEROBASE_ENV=dev ZEROBASE_DATABASE_URL=sqlite:///./dev.db \
 
 To run the tests against PostgreSQL, point `ZEROBASE_TEST_DATABASE_URL` at a throwaway database, for example `postgresql+psycopg://user:pass@localhost:5432/zerobase_test`. CI runs the suite on both.
 
+### Database migrations
+
+The schema is managed with [Alembic](https://alembic.sqlalchemy.org/). The app upgrades its database to the latest revision every time it starts, so deployments need no extra step. Migration scripts live in `src/zerobase/migrations/versions/`.
+
+To change the schema, edit `models.py`, then generate a revision from the project root against a database that is already at head:
+
+```sh
+export ZEROBASE_DATABASE_URL=sqlite:///./dev.db
+alembic upgrade head
+alembic revision --autogenerate -m "add closed flag to accounts"
+```
+
+Read the generated file and fix anything autogenerate got wrong (it cannot detect renames, for example, and new non-null columns need a default for existing rows). Write a working `downgrade()` as well. `tests/test_migrations.py` fails if the migrations and the models disagree, on SQLite and PostgreSQL.
+
 ### Stack
 
 Python 3.12, FastAPI, SQLAlchemy 2, PostgreSQL, Jinja2 templates and [htmx](https://htmx.org) (vendored, no CDN, no build step). One container for the app, one for the database.
@@ -100,6 +114,7 @@ src/zerobase/
   budget.py       envelope maths (the core logic)
   money.py        parsing and formatting of amounts
   models.py       database tables
+  migrations/     Alembic schema migrations, applied on start
   routers/        auth, budget, accounts, transactions
   templates/      server-rendered pages
 tests/            unit tests for the maths, plus end-to-end tests of the web app
@@ -120,7 +135,7 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 - [ ] Credit card accounts
 - [ ] CSV import
 - [ ] Rename, reorder and delete categories; close accounts
-- [ ] Database migrations (Alembic)
+- [x] Database migrations (Alembic)
 - [ ] Targets and goals
 - [ ] Scheduled and recurring transactions
 - [ ] Spending and net-worth reports

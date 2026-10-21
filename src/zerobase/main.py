@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
@@ -9,11 +10,15 @@ from sqlalchemy import text
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import Settings, get_settings
-from .db import Base, make_engine, make_session_factory
+from .db import make_engine, make_session_factory
 from .deps import NotAuthenticated
+from .migrate import upgrade_to_head
 from .routers import accounts, auth, budget, transactions
 from .security import LoginThrottle
 from .templating import PACKAGE_DIR, make_templates
+
+# uvicorn only configures its own loggers, so log there to be seen in `docker compose logs`.
+log = logging.getLogger("uvicorn.error")
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 SECURITY_HEADERS = {
@@ -38,7 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        Base.metadata.create_all(engine)
+        log.info("Database schema at revision %s", upgrade_to_head(engine))
         yield
         engine.dispose()
 

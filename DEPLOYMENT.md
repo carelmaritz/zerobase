@@ -190,7 +190,7 @@ docker compose ps                   # health
 docker compose restart app          # restart just the app
 ```
 
-**Update to a new version.** Zerobase has **no database migrations yet**: the app creates missing tables on start but never alters existing ones. Until migrations land, a release that changes the database layout needs manual care, so always back up first and read the release notes.
+**Update to a new version.** The app upgrades its database automatically when it starts (the log shows `Database schema at revision ...`). Always back up first: a database upgrade cannot be undone except by restoring that backup.
 
 ```sh
 cd /opt/zerobase

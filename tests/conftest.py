@@ -8,6 +8,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from zerobase.config import Settings
 from zerobase.db import Base
@@ -24,7 +25,10 @@ def app():
     )
     application = create_app(settings)
     yield application
-    Base.metadata.drop_all(application.state.engine)  # leave a shared database clean
+    # Leave a shared database empty, migration history included.
+    with application.state.engine.begin() as connection:
+        Base.metadata.drop_all(connection)
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     application.state.engine.dispose()
 
 
@@ -36,6 +40,6 @@ def client(app):
 
 @pytest.fixture
 def db(client, app):
-    # Depends on `client` so the lifespan has created the tables first.
+    # Depends on `client` so the lifespan has run the migrations first.
     with app.state.session_factory() as session:
         yield session

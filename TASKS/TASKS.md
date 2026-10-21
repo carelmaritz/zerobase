@@ -31,7 +31,7 @@ graph LR
 - Every row carries `user_id` and every query is scoped to the signed-in user.
 - Budget numbers are computed on read from transactions and assignments (`budget.build_budget`); nothing derived is stored. Today, income is identified by convention: an on-budget transaction with no category and a positive amount.
 - Strict CSP (`default-src 'self'`): no inline scripts, no third-party assets. Any JS or chart library must be vendored.
-- No database migrations yet: the schema is created with `create_all` on startup. TASK-C001 fixes this and blocks every task that changes the schema.
+- Schema changes go through Alembic migrations (`src/zerobase/migrations/`); the app upgrades the database to head on startup. Every model change needs a new revision.
 
 ---
 
@@ -101,7 +101,6 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
-| TASK-C001 | Database migrations (Alembic) | M | TODO | Unassigned | None | Replace `create_all` with versioned migrations so installs can upgrade in place; blocks every schema change |
 
 ---
 
@@ -144,6 +143,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Completed | Assignee | Description |
 |---------|-------|--------|-----------|----------|-------------|
+| TASK-C001 | Database migrations (Alembic) | M | 2026-10-21 | Claude | Versioned Alembic migrations applied on startup; refuses pre-migration databases |
 | TASK-H000 | Initial scaffold | M | 2026-10-19 | Claude | FastAPI app, envelope maths, auth, accounts, transactions, Docker, CI |
 
 ---

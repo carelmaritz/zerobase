@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
+    "alembic>=1.13",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "sqlalchemy>=2.0.30",
@@ -32,7 +33,14 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-zerobase = ["templates/*.html", "static/*", "static/vendor/*"]
+zerobase = [
+    "templates/*.html",
+    "static/*",
+    "static/vendor/*",
+    "migrations/*.py",
+    "migrations/script.py.mako",
+    "migrations/versions/*.py",
+]
 
 [tool.ruff]
 line-length = 100
