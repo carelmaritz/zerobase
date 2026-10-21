@@ -16,9 +16,11 @@
 </div>
 {%- endmacro %}
 
-{# <option>s for a category <select>. `categories` is a list of (Category, CategoryGroup). #}
-{% macro category_options(categories, selected_id=None) -%}
+{# <option>s for a category <select>. `categories` is a list of (Category, CategoryGroup);
+   `inflow` is the user's built-in income category. #}
+{% macro category_options(categories, inflow, selected_id=None) -%}
 <option value="">Uncategorised</option>
+<option value="{{ inflow.id }}"{% if inflow.id == selected_id %} selected{% endif %}>Inflow: Ready to Assign</option>
 {%- set ns = namespace(group=None) %}
 {%- for cat, grp in categories %}
   {%- if ns.group != grp.id %}

@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from ..budget import inflow_category
 from ..deps import current_user, get_db, owned_account, owned_category
 from ..models import Account, Category, CategoryGroup, Transaction, User
 from ..money import parse_money
@@ -38,6 +39,8 @@ def _page(
         .where(Category.user_id == user.id)
         .order_by(CategoryGroup.sort_order, CategoryGroup.id, Category.sort_order, Category.id)
     ).all()
+    inflow = inflow_category(db, user.id)
+    db.commit()  # in case it had to be created, so the picker never offers a phantom ID
     context = {
         "user": user,
         "active": "transactions",
@@ -46,6 +49,7 @@ def _page(
             select(Account).where(Account.user_id == user.id).order_by(Account.id)
         ).all(),
         "categories": categories,
+        "inflow": inflow,
         "account_id": account_id,
         "today": date.today().isoformat(),
         "page_size": PAGE_SIZE,

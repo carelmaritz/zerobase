@@ -114,7 +114,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | TASK-H004 | Manage accounts | S | TODO | Unassigned | TASK-C001 | Rename, close/reopen and delete accounts |
 | TASK-H005 | Credit card accounts | L | TODO | Unassigned | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
 | TASK-H006 | CSV import | L | TODO | Unassigned | TASK-C001 | Import bank statements from CSV with column mapping, preview and duplicate detection |
-| TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | TODO | Unassigned | TASK-C001 | Mark income with a built-in category instead of "no category + positive"; needed before transfers |
+| TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | REVIEW | Claude | TASK-C001 | Mark income with a built-in category instead of "no category + positive"; needed before transfers |
 
 ---
 

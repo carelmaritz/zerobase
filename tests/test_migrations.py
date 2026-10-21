@@ -71,3 +71,68 @@ def test_refuses_a_database_created_without_migrations(engine):
     assert "alembic_version" not in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM users")).scalar() == 1
+
+
+def test_0002_moves_existing_income_into_the_inflow_category(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0001")
+        connection.execute(
+            text(
+                "INSERT INTO users (id, email, password_hash, created_at) VALUES "
+                "(1, 'a@b.c', 'x', '2026-01-01'), (2, 'd@e.f', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (id, user_id, name, kind, on_budget) VALUES "
+                "(1, 1, 'Current', 'checking', :t), (2, 1, 'Mortgage', 'other', :f), "
+                "(3, 2, 'Current', 'checking', :t)"
+            ),
+            {"t": True, "f": False},
+        )
+        # No explicit category IDs: PostgreSQL's sequence must stay in step for the migration.
+        connection.execute(
+            text("INSERT INTO category_groups (user_id, name, sort_order) VALUES (1, 'Needs', 0)")
+        )
+        connection.execute(
+            text(
+                "INSERT INTO categories (user_id, group_id, name, sort_order) "
+                "SELECT 1, id, 'Groceries', 0 FROM category_groups"
+            )
+        )
+        groceries = connection.execute(text("SELECT id FROM categories")).scalar()
+        connection.execute(
+            text(
+                "INSERT INTO transactions "
+                "(id, user_id, account_id, category_id, date, payee, memo, amount) VALUES "
+                "(1, 1, 1, NULL, '2026-10-01', 'Salary', '', 300000), "
+                "(2, 1, 1, NULL, '2026-10-02', 'Mystery', '', -500), "
+                "(3, 1, 1, :groceries, '2026-10-03', 'Refund', '', 700), "
+                "(4, 1, 2, NULL, '2026-10-04', 'Start', '', 900000), "
+                "(5, 2, 3, NULL, '2026-10-05', 'Salary', '', 1000)"
+            ),
+            {"groceries": groceries},
+        )
+
+    upgrade_to_head(engine)
+    with engine.connect() as connection:
+        inflow = dict(
+            connection.execute(
+                text(
+                    "SELECT user_id, id FROM categories WHERE kind = 'inflow' AND group_id IS NULL"
+                )
+            ).all()
+        )
+        assert set(inflow) == {1, 2}
+        rows = dict(connection.execute(text("SELECT id, category_id FROM transactions")).all())
+        assert rows == {1: inflow[1], 2: None, 3: groceries, 4: None, 5: inflow[2]}
+        kind = connection.execute(
+            text("SELECT kind FROM categories WHERE id = :id"), {"id": groceries}
+        ).scalar()
+        assert kind == "standard"
+
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0001")
+        rows = dict(connection.execute(text("SELECT id, category_id FROM transactions")).all())
+        assert rows == {1: None, 2: None, 3: groceries, 4: None, 5: None}
+        assert connection.execute(text("SELECT count(*) FROM categories")).scalar() == 1

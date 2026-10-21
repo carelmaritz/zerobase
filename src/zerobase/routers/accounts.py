@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..budget import account_balances
+from ..budget import account_balances, inflow_category
 from ..deps import current_user, get_db
 from ..models import Account, Transaction, User
 from ..money import parse_money
@@ -57,11 +57,12 @@ def add_account(
     db.add(account)
     db.flush()
     if balance:
-        # A positive opening balance in a budget account is money to assign.
+        # A budget account's opening balance is money to assign (or owed, if negative).
         db.add(
             Transaction(
                 user_id=user.id,
                 account_id=account.id,
+                category_id=inflow_category(db, user.id).id if account.on_budget else None,
                 date=date.today(),
                 payee="Starting balance",
                 amount=balance,
