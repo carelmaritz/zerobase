@@ -59,11 +59,21 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    group_id: Mapped[int] = mapped_column(ForeignKey("category_groups.id", ondelete="CASCADE"))
+    # Only the built-in inflow category has no group.
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("category_groups.id", ondelete="CASCADE"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(60))
     sort_order: Mapped[int] = mapped_column(default=0)
+    # "standard" envelopes, or "inflow": the one per-user "Inflow: Ready to Assign" category.
+    # Transactions in it are income; it is never shown in the budget or assigned to.
+    kind: Mapped[str] = mapped_column(String(20), default="standard", server_default="standard")
 
-    group: Mapped[CategoryGroup] = relationship()
+    group: Mapped[CategoryGroup | None] = relationship()
+
+    @property
+    def is_inflow(self) -> bool:
+        return self.kind == "inflow"
 
 
 class Transaction(Base):
@@ -73,8 +83,8 @@ class Transaction(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
-    # NULL category + positive amount = income (goes to Ready to Assign).
-    # NULL category + negative amount = uncategorised spending (flagged in the UI).
+    # The inflow category means income (Ready to Assign). NULL means not categorised yet:
+    # it counts nowhere in the budget and is flagged in the UI.
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
     )

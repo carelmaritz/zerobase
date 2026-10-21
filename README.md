@@ -8,7 +8,7 @@ It is a small, open-source take on the YNAB method that you run yourself, on you
 ## How it works
 
 1. **Add accounts.** A *budget* account's balance is money you can plan with. A *tracking* account (a mortgage, say) only records a balance.
-2. **Record income** as an inflow with no category. It lands in **Ready to Assign**.
+2. **Record income** as an inflow in the **Inflow: Ready to Assign** category. It lands in **Ready to Assign**.
 3. **Assign** that money to categories, month by month. Type straight into the *Assigned* column; the totals update without a page reload.
 4. **Spend** by recording transactions against a category. *Available* = rolled-over balance + assigned + activity.
 5. **Overspent?** A negative envelope doesn't roll forward. It resets to zero next month and reduces Ready to Assign instead, so overspending is always paid for with real money.

@@ -2,8 +2,9 @@
 
 The model follows the zero-based / YNAB approach:
 
-* Income is a transaction with no category and a positive amount in a budget account.
-  It flows into **Ready to Assign**.
+* Income is a budget-account transaction in the built-in **Inflow: Ready to Assign**
+  category. It flows into **Ready to Assign** (a negative one reduces it). A transaction
+  with no category isn't counted anywhere until it is categorised.
 * You **assign** money to categories month by month.
 * **Activity** is what you spent (negative) or got back (positive) in a category that month.
 * **Available** = what rolled over from last month + assigned + activity.
@@ -15,7 +16,7 @@ The model follows the zero-based / YNAB approach:
 from dataclasses import dataclass, field
 from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from .models import Account, Assignment, Category, CategoryGroup, Transaction
@@ -73,7 +74,8 @@ class BudgetView:
     ready_to_assign: int
     income_this_month: int
     uncategorised_count: int
-    uncategorised_total: int
+    uncategorised_outflow: int  # negative
+    uncategorised_inflow: int
 
 
 def _year_month(year: float, month: float) -> date:
@@ -94,6 +96,8 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         .where(Category.user_id == user_id)
         .order_by(Category.sort_order, Category.id)
     ).all()
+    inflow_ids = {c.id for c in categories if c.is_inflow}
+    categories = [c for c in categories if not c.is_inflow]
 
     assigned: dict[tuple[int, date], int] = {}
     for category_id, m, amount in db.execute(
@@ -121,24 +125,25 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         )
 
     activity: dict[tuple[int, date], int] = {}
-    for category_id, y, m, total in monthly_totals(Transaction.category_id.is_not(None)):
-        activity[(category_id, _year_month(y, m))] = int(total)
-
-    # Income is an inflow with no category. Only positive amounts count: uncategorised
-    # outflows are reported separately below instead of silently shrinking income.
     income: dict[date, int] = {}
-    for _, y, m, total in monthly_totals(Transaction.category_id.is_(None), Transaction.amount > 0):
-        income[_year_month(y, m)] = int(total)
+    for category_id, y, m, total in monthly_totals(Transaction.category_id.is_not(None)):
+        if category_id in inflow_ids:
+            income[_year_month(y, m)] = int(total)
+        else:
+            activity[(category_id, _year_month(y, m))] = int(total)
 
-    # Uncategorised outflows would otherwise vanish from the maths, so surface them.
-    uncat_count, uncat_total = db.execute(
-        select(func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0))
+    # Uncategorised transactions would otherwise vanish from the maths, so surface them.
+    uncat_count, uncat_outflow, uncat_inflow = db.execute(
+        select(
+            func.count(Transaction.id),
+            func.coalesce(func.sum(case((Transaction.amount < 0, Transaction.amount))), 0),
+            func.coalesce(func.sum(case((Transaction.amount > 0, Transaction.amount))), 0),
+        )
         .join(Account, Account.id == Transaction.account_id)
         .where(
             Transaction.user_id == user_id,
             Account.on_budget.is_(True),
             Transaction.category_id.is_(None),
-            Transaction.amount < 0,
             Transaction.date < next_month,
         )
     ).one()
@@ -179,7 +184,8 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         ready_to_assign=total_income - total_assigned - overspent_before,
         income_this_month=income.get(month, 0),
         uncategorised_count=int(uncat_count),
-        uncategorised_total=int(uncat_total),
+        uncategorised_outflow=int(uncat_outflow),
+        uncategorised_inflow=int(uncat_inflow),
     )
 
 
@@ -205,7 +211,23 @@ DEFAULT_CATEGORIES: dict[str, list[str]] = {
 }
 
 
+def inflow_category(db: Session, user_id: int) -> Category:
+    """The user's built-in income category, created if it is somehow missing."""
+    category = db.scalar(
+        select(Category)
+        .where(Category.user_id == user_id, Category.kind == "inflow")
+        .order_by(Category.id)
+        .limit(1)
+    )
+    if category is None:
+        category = Category(user_id=user_id, group_id=None, name="Ready to Assign", kind="inflow")
+        db.add(category)
+        db.flush()
+    return category
+
+
 def seed_default_categories(db: Session, user_id: int) -> None:
+    inflow_category(db, user_id)
     order = 0
     for group_order, (group_name, names) in enumerate(DEFAULT_CATEGORIES.items()):
         group = CategoryGroup(user_id=user_id, name=group_name, sort_order=group_order)

@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy import select
 
-from zerobase.models import Category, CategoryGroup, User
+from zerobase.models import Account, Category, CategoryGroup, Transaction, User
 from zerobase.security import hash_password
 
 PASSWORD = "correct horse battery"
@@ -171,3 +171,36 @@ def test_other_users_data_is_off_limits(client, db):
     )
     assert response.status_code == 404
     assert "Secret" not in client.get("/budget").text
+
+
+def test_income_uses_the_inflow_category(client, db):
+    register(client)
+    user = db.scalar(select(User).where(User.email == "me@example.com"))
+    inflow = db.scalar(
+        select(Category).where(Category.user_id == user.id, Category.kind == "inflow")
+    )
+    assert inflow is not None and inflow.group_id is None
+
+    client.post("/accounts", data={"name": "Current", "on_budget": "1", "opening_balance": "100"})
+    client.post("/accounts", data={"name": "Overdraft", "on_budget": "1", "opening_balance": "-30"})
+    client.post("/accounts", data={"name": "Mortgage", "opening_balance": "-5000"})
+    starts = db.scalars(select(Transaction).where(Transaction.user_id == user.id)).all()
+    by_amount = {t.amount: t.category_id for t in starts}
+    assert by_amount == {10_000: inflow.id, -3_000: inflow.id, -500_000: None}
+
+    page = client.get("/transactions").text
+    assert f'<option value="{inflow.id}">Inflow: Ready to Assign</option>' in page
+    account_id = db.scalar(select(Account.id).where(Account.name == "Current"))
+    base = {"account_id": account_id, "when": date.today().isoformat()}
+    client.post("/transactions", data={**base, "category_id": inflow.id, "inflow": "50"})
+    client.post("/transactions", data={**base, "inflow": "20"})  # no category: not income
+
+    budget = client.get(f"/budget?month={THIS_MONTH}").text
+    assert "£120.00" in budget  # 100 - 30 + 50
+    assert "1 uncategorised transaction" in budget and "£20.00 in" in budget
+    assert "Inflow" not in budget  # never shown as an envelope
+
+    refused = client.post(
+        "/budget/assign", data={"category_id": inflow.id, "month": THIS_MONTH, "amount": "5"}
+    )
+    assert refused.status_code == 404

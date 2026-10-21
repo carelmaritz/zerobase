@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -70,6 +70,8 @@ def assign(
     user: User = Depends(current_user),
 ):
     category = owned_category(db, user, category_id)
+    if category.is_inflow:  # Ready to Assign is the source of assignments, not an envelope
+        raise HTTPException(status_code=404, detail="Category not found")
     selected = _month_param(month)
 
     error = None

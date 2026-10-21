@@ -14,8 +14,11 @@
 
 {% if view.uncategorised_count %}
 <p class="notice">
-  {{ view.uncategorised_count }} uncategorised outflow{{ "" if view.uncategorised_count == 1 else "s" }}
-  ({{ (-view.uncategorised_total)|money }}) not in any envelope yet.
+  {{ view.uncategorised_count }} uncategorised transaction{{ "" if view.uncategorised_count == 1 else "s" }}
+  ({% if view.uncategorised_outflow %}{{ (-view.uncategorised_outflow)|money }} out{% endif %}
+  {%- if view.uncategorised_outflow and view.uncategorised_inflow %}, {% endif %}
+  {%- if view.uncategorised_inflow %}{{ view.uncategorised_inflow|money }} in{% endif %})
+  not counted in your budget yet.
   <a href="/transactions">Categorise {{ "it" if view.uncategorised_count == 1 else "them" }}</a>.
 </p>
 {% endif %}

@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from zerobase.budget import add_months, build_budget, parse_month
+from zerobase.budget import add_months, build_budget, inflow_category, parse_month
 from zerobase.models import (
     Account,
     Assignment,
@@ -30,8 +30,15 @@ def world(db):
     tracking = Account(user_id=user.id, name="Mortgage", on_budget=False)
     db.add_all([groceries, account, tracking])
     db.flush()
+    inflow = inflow_category(db, user.id)
     db.commit()
-    return {"user": user, "groceries": groceries, "account": account, "tracking": tracking}
+    return {
+        "user": user,
+        "groceries": groceries,
+        "inflow": inflow,
+        "account": account,
+        "tracking": tracking,
+    }
 
 
 def txn(db, w, when, amount, *, category=None, account=None):
@@ -45,6 +52,10 @@ def txn(db, w, when, amount, *, category=None, account=None):
         )
     )
     db.commit()
+
+
+def income(db, w, when, amount):
+    txn(db, w, when, amount, category=w["inflow"])
 
 
 def assign(db, w, month, amount):
@@ -74,7 +85,7 @@ def test_empty_budget(db, world):
 
 
 def test_income_flows_to_ready_to_assign_then_envelopes(db, world):
-    txn(db, world, date(2026, 10, 5), 100_000)
+    income(db, world, date(2026, 10, 5), 100_000)
     assert build_budget(db, world["user"].id, OCT).ready_to_assign == 100_000
 
     assign(db, world, OCT, 60_000)
@@ -89,7 +100,7 @@ def test_income_flows_to_ready_to_assign_then_envelopes(db, world):
 
 
 def test_positive_balance_rolls_over(db, world):
-    txn(db, world, date(2026, 10, 5), 100_000)
+    income(db, world, date(2026, 10, 5), 100_000)
     assign(db, world, OCT, 60_000)
     txn(db, world, date(2026, 10, 10), -12_000, category=world["groceries"])
 
@@ -99,7 +110,7 @@ def test_positive_balance_rolls_over(db, world):
 
 
 def test_overspending_resets_envelope_and_hits_ready_to_assign(db, world):
-    txn(db, world, date(2026, 10, 5), 100_000)
+    income(db, world, date(2026, 10, 5), 100_000)
     assign(db, world, OCT, 60_000)
     assign(db, world, NOV, 10_000)
     txn(db, world, date(2026, 10, 10), -12_000, category=world["groceries"])
@@ -115,7 +126,7 @@ def test_overspending_resets_envelope_and_hits_ready_to_assign(db, world):
 
 
 def test_future_income_and_assignments_are_ignored(db, world):
-    txn(db, world, date(2026, 11, 5), 50_000)
+    income(db, world, date(2026, 11, 5), 50_000)
     assign(db, world, NOV, 20_000)
     view = build_budget(db, world["user"].id, OCT)
     assert view.ready_to_assign == 0
@@ -132,12 +143,30 @@ def test_tracking_accounts_stay_out_of_the_budget(db, world):
     assert line(view).activity == 0
 
 
-def test_uncategorised_outflows_are_reported(db, world):
-    txn(db, world, date(2026, 10, 5), 10_000)
+def test_uncategorised_transactions_are_reported_and_not_counted(db, world):
+    income(db, world, date(2026, 10, 4), 10_000)
+    txn(db, world, date(2026, 10, 5), 4_000)  # an inflow with no category is not income
     txn(db, world, date(2026, 10, 6), -2_500)
     view = build_budget(db, world["user"].id, OCT)
-    assert (view.uncategorised_count, view.uncategorised_total) == (1, -2_500)
+    assert view.uncategorised_count == 2
+    assert (view.uncategorised_outflow, view.uncategorised_inflow) == (-2_500, 4_000)
     assert view.ready_to_assign == 10_000
+
+
+def test_negative_inflow_reduces_ready_to_assign(db, world):
+    income(db, world, date(2026, 10, 5), 10_000)
+    income(db, world, date(2026, 10, 6), -1_500)  # e.g. a salary correction
+    view = build_budget(db, world["user"].id, OCT)
+    assert (view.ready_to_assign, view.income_this_month) == (8_500, 8_500)
+    assert view.uncategorised_count == 0
+
+
+def test_inflow_category_is_not_an_envelope(db, world):
+    income(db, world, date(2026, 10, 5), 10_000)
+    view = build_budget(db, world["user"].id, OCT)
+    names = [line.category.name for block in view.groups for line in block.lines]
+    assert names == ["Groceries"]
+    assert line(view).activity == 0
 
 
 def test_refund_in_a_category_increases_available(db, world):
@@ -151,7 +180,7 @@ def test_users_are_isolated(db, world):
     other = User(email="b@example.com", password_hash="x")
     db.add(other)
     db.commit()
-    txn(db, world, date(2026, 10, 5), 100_000)
+    income(db, world, date(2026, 10, 5), 100_000)
     view = build_budget(db, other.id, OCT)
     assert view.ready_to_assign == 0
     assert view.groups == []

@@ -114,7 +114,6 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | TASK-H004 | Manage accounts | S | TODO | Unassigned | TASK-C001 | Rename, close/reopen and delete accounts |
 | TASK-H005 | Credit card accounts | L | TODO | Unassigned | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
 | TASK-H006 | CSV import | L | TODO | Unassigned | TASK-C001 | Import bank statements from CSV with column mapping, preview and duplicate detection |
-| TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | TODO | Unassigned | TASK-C001 | Mark income with a built-in category instead of "no category + positive"; needed before transfers |
 
 ---
 
@@ -144,6 +143,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Completed | Assignee | Description |
 |---------|-------|--------|-----------|----------|-------------|
+| TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | 2026-10-21 | Claude | Built-in inflow category marks income; migration 0002 moves existing income into it |
 | TASK-C001 | Database migrations (Alembic) | M | 2026-10-21 | Claude | Versioned Alembic migrations applied on startup; refuses pre-migration databases |
 | TASK-H000 | Initial scaffold | M | 2026-10-19 | Claude | FastAPI app, envelope maths, auth, accounts, transactions, Docker, CI |
 
