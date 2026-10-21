@@ -108,7 +108,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
-| TASK-H001 | Edit transactions | S | TODO | Unassigned | None | Edit date, account, payee, memo, category and amount of an existing transaction |
+| TASK-H001 | Edit transactions | S | IN_PROGRESS | Claude | None | Edit date, account, payee, memo, category and amount of an existing transaction |
 | TASK-H002 | Transfers between accounts | M | TODO | Unassigned | TASK-C001, TASK-H007 | Linked two-legged transfers that don't count as income or spending between budget accounts |
 | TASK-H003 | Manage categories and groups | M | TODO | Unassigned | TASK-C001 | Rename, reorder, move, hide and delete (with reassignment) categories and groups |
 | TASK-H004 | Manage accounts | S | TODO | Unassigned | TASK-C001 | Rename, close/reopen and delete accounts |

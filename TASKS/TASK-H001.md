@@ -1,11 +1,11 @@
 # TASK-H001: Edit transactions
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: H - High
 **Effort**: S - 1-2 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-10-21
 **Completed**:
 **Branch**: TASK-H001
 **Dependencies**: None
