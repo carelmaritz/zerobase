@@ -86,7 +86,7 @@ None yet.
 ### Test Cases
 - [ ] Edit amount: account balance and category activity change accordingly
 - [ ] Edit date across a month boundary: activity moves months, rollover recalculated
-- [ ] Change outflow to inflow on an uncategorised transaction: it becomes income and Ready to Assign rises
+- [ ] Change a transaction's category to "Inflow: Ready to Assign": it becomes income and Ready to Assign rises
 - [ ] Invalid date, both amounts, zero amount: 400 with message, row unchanged
 - [ ] Other user's transaction: 404
 

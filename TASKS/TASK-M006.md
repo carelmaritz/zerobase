@@ -29,7 +29,7 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
 - Schema: transaction status `uncleared | cleared | reconciled`.
 - Toggle cleared on the transactions list (htmx, like the category picker).
 - Account shows cleared balance, uncleared balance and total.
-- **Reconcile** flow: user enters the bank's balance; if it equals the cleared balance, mark all cleared as reconciled; if not, offer to create a "Reconciliation balance adjustment" transaction for the difference (on budget: uncategorised inflow/outflow, affecting Ready to Assign like YNAB does).
+- **Reconcile** flow: user enters the bank's balance; if it equals the cleared balance, mark all cleared as reconciled; if not, offer to create a "Reconciliation balance adjustment" transaction for the difference (on budget: in "Inflow: Ready to Assign", affecting Ready to Assign like YNAB does).
 - Reconciled transactions warn before edit or delete.
 - CSV import (TASK-H006) may mark imported rows cleared.
 
@@ -51,7 +51,7 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
 
 **Free to decide**: UI, warning style for reconciled edits.
 
-**Ask first**: How the adjustment is categorised on budget accounts (ties to the explicit-income question in TASK-H002 Notes).
+**Ask first**: Whether the user may pick a different category for the adjustment.
 
 ---
 

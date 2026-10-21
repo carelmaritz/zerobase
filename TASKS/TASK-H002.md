@@ -8,7 +8,7 @@
 **Started**:
 **Completed**:
 **Branch**: TASK-H002
-**Dependencies**: TASK-C001
+**Dependencies**: TASK-C001, TASK-H007
 
 ---
 
@@ -20,12 +20,12 @@ Record moving money between two of the user's accounts as a single linked transf
 
 ## Background
 
-Today, moving £500 from current account to savings must be entered as an outflow and an inflow. With no category, the inflow counts as **income** (Ready to Assign goes up by £500) and the outflow is flagged as **uncategorised spending**. Both are wrong.
+Today, moving £500 from current account to savings must be entered as an outflow and an inflow. After TASK-H007 neither leg counts as income, but both are flagged as **uncategorised**, and nothing links them. Before TASK-H007 the inflow leg even counted as income.
 
 YNAB rules this task should follow:
 - **Budget to budget**: no category, no effect on Ready to Assign or any envelope. Only account balances change.
 - **Budget to tracking** (e.g. paying the mortgage or moving to an investment account): money leaves the budget, so the budget-side leg **needs a category** and counts as spending. The tracking leg has no category.
-- **Tracking to budget**: money enters the budget; the budget-side leg is income (or categorised, e.g. a refund).
+- **Tracking to budget**: money enters the budget; the budget-side leg needs a category, usually "Inflow: Ready to Assign" (or e.g. a refund category).
 - **Tracking to tracking**: balances only.
 
 ---
@@ -34,7 +34,7 @@ YNAB rules this task should follow:
 
 - Schema (migration): a link between the two legs, e.g. `transfer_id` on `transactions` (self-referencing FK to the other leg) or a shared transfer group key. Both legs belong to the same user.
 - Creating, editing and deleting a transfer always keeps both legs consistent (amounts equal and opposite, same date), in one database transaction.
-- `budget.build_budget` must exclude budget-to-budget transfer legs from **income** and from the **uncategorised outflow** count. This is the critical correctness change, since today any uncategorised positive on-budget transaction is treated as income.
+- `budget.build_budget` must exclude budget-to-budget transfer legs from the **uncategorised** warning. They have no category, so (after TASK-H007) they already stay out of income and envelopes.
 - UI: a "Transfer to/from" choice in the add-transaction form (YNAB shows transfers as payees "Transfer: Savings"). The transaction list shows the other account.
 - Category on a transfer leg is only allowed on the budget side of a budget/tracking transfer, and required there.
 
@@ -59,7 +59,7 @@ YNAB rules this task should follow:
 
 **Free to decide**: UI layout, route names, how the paired leg is displayed.
 
-**Ask first**: The schema shape (self-FK vs group key vs a separate `transfers` table) and whether to introduce an explicit "Ready to Assign" inflow category at the same time (see Notes).
+**Ask first**: The schema shape (self-FK vs group key vs a separate `transfers` table).
 
 ---
 
@@ -67,7 +67,7 @@ YNAB rules this task should follow:
 
 ### Phase 1: Model and maths
 - [ ] Migration adding the transfer link
-- [ ] Update `build_budget` income and uncategorised queries to ignore transfer legs where appropriate
+- [ ] Update the `build_budget` uncategorised query to ignore budget-to-budget transfer legs
 - [ ] Unit tests in `test_budget.py` for all four account combinations
 
 ### Phase 2: Create, edit, delete
@@ -109,7 +109,7 @@ None yet.
 
 ## Known Issues & Gotchas
 
-- [ ] The income rule in `build_budget` (no category + positive + on-budget) will misclassify transfer inflows unless the query explicitly excludes them. Same for the uncategorised outflow count.
+- [ ] Budget-to-budget legs have no category, so the uncategorised count must explicitly exclude them.
 - [ ] `ondelete` behaviour of the link: deleting one leg must not leave an orphan pointing nowhere.
 - [ ] Deleting an account (TASK-H004) that has transfers must handle the other account's legs.
 
@@ -117,7 +117,7 @@ None yet.
 
 ## Related Tasks
 
-- **Depends On**: TASK-C001
+- **Depends On**: TASK-C001, TASK-H007
 - **Blocks**: TASK-H005, TASK-M003
 - **Related**: TASK-H001, TASK-H004, TASK-H006, TASK-M002
 
@@ -125,7 +125,7 @@ None yet.
 
 ## Notes
 
-Design question to settle before starting: income is currently identified implicitly (no category + positive). YNAB instead has an explicit "Inflow: Ready to Assign" category, which makes negative adjustments to Ready to Assign possible (e.g. a budget account opened while overdrawn) and makes "uncategorised" unambiguous. Transfers, credit cards and CSV import all get simpler if income is explicit. Worth deciding once for all three.
+Settled 2026-10-21: income is explicit via an "Inflow: Ready to Assign" category, done first as TASK-H007.
 
 ---
 

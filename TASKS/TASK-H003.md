@@ -23,7 +23,7 @@ Let the user rename, reorder, move, hide and delete categories and category grou
 Today categories and groups can only be added. New users get a default set (`DEFAULT_CATEGORIES` in `budget.py`) that they cannot tailor.
 
 Naive deletion is dangerous with the current foreign keys:
-- `transactions.category_id` is `ON DELETE SET NULL`. A deleted category's **positive** transactions would become **income** and its negative ones **uncategorised spending**, changing Ready to Assign and history.
+- `transactions.category_id` is `ON DELETE SET NULL`. A deleted category's transactions would all become **uncategorised**, dropping out of the budget and changing history. The built-in "Inflow: Ready to Assign" category (TASK-H007) must never be renamed, moved, hidden or deleted: deleting it would uncategorise all income.
 - `assignments.category_id` is `ON DELETE CASCADE`. Deleting assignments returns that money to Ready to Assign for every past month.
 
 So deletion must reassign, the way YNAB does: "Move this category's transactions and available balance to...".

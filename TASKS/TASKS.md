@@ -29,7 +29,7 @@ graph LR
 **Note**:
 - All money is stored as signed integers in minor units (pence). Never floats.
 - Every row carries `user_id` and every query is scoped to the signed-in user.
-- Budget numbers are computed on read from transactions and assignments (`budget.build_budget`); nothing derived is stored. Today, income is identified by convention: an on-budget transaction with no category and a positive amount.
+- Budget numbers are computed on read from transactions and assignments (`budget.build_budget`); nothing derived is stored. Income is an on-budget transaction in the user's built-in "Inflow: Ready to Assign" category (TASK-H007); a blank category means uncategorised.
 - Strict CSP (`default-src 'self'`): no inline scripts, no third-party assets. Any JS or chart library must be vendored.
 - Schema changes go through Alembic migrations (`src/zerobase/migrations/`); the app upgrades the database to head on startup. Every model change needs a new revision.
 
@@ -109,11 +109,12 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
 | TASK-H001 | Edit transactions | S | TODO | Unassigned | None | Edit date, account, payee, memo, category and amount of an existing transaction |
-| TASK-H002 | Transfers between accounts | M | TODO | Unassigned | TASK-C001 | Linked two-legged transfers that don't count as income or spending between budget accounts |
+| TASK-H002 | Transfers between accounts | M | TODO | Unassigned | TASK-C001, TASK-H007 | Linked two-legged transfers that don't count as income or spending between budget accounts |
 | TASK-H003 | Manage categories and groups | M | TODO | Unassigned | TASK-C001 | Rename, reorder, move, hide and delete (with reassignment) categories and groups |
 | TASK-H004 | Manage accounts | S | TODO | Unassigned | TASK-C001 | Rename, close/reopen and delete accounts |
 | TASK-H005 | Credit card accounts | L | TODO | Unassigned | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
 | TASK-H006 | CSV import | L | TODO | Unassigned | TASK-C001 | Import bank statements from CSV with column mapping, preview and duplicate detection |
+| TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | TODO | Unassigned | TASK-C001 | Mark income with a built-in category instead of "no category + positive"; needed before transfers |
 
 ---
 
