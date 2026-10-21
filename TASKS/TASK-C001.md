@@ -33,12 +33,12 @@ Almost every roadmap feature needs a schema change (transfer links, hidden/close
 - A constraint **naming convention** on `Base.metadata` (`ix`, `uq`, `ck`, `fk`, `pk`), set before the baseline is generated. Unnamed constraints are painful to alter later, especially on SQLite.
 - `render_as_batch=True` so ALTERs work on SQLite (dev and tests).
 - The app upgrades the database to head on startup, replacing `create_all`. Must be safe if two processes start at once (Postgres advisory lock, or document single-instance only).
-- Existing installs created by `create_all` (tables present, no `alembic_version`) are detected and stamped at the baseline, not re-created.
+- No pre-migration installs exist (decision 2026-10-21, see Key Decisions). If the app finds application tables but no `alembic_version`, it refuses to start with a clear message explaining dump/restore, rather than stamping or touching the data.
 - The database URL comes from `Settings`, not a hard-coded `alembic.ini` value.
 
 ### Success Criteria
 - [ ] Fresh database: app starts, tables are created via migrations, `alembic_version` is at head.
-- [ ] Database created by the current `create_all` code: app starts, is stamped at baseline, data untouched.
+- [ ] Database with app tables but no `alembic_version`: app refuses to start with a clear message, data untouched.
 - [ ] A test asserts migrations at head match the models (`alembic check` or `compare_metadata`) on SQLite and PostgreSQL in CI.
 - [ ] A test runs upgrade to head then downgrade to base on an empty database.
 - [ ] README: in-place upgrade warning removed; "how to add a migration" added to Development; backup-before-upgrade advice added.
@@ -55,7 +55,7 @@ Almost every roadmap feature needs a schema change (transfer links, hidden/close
 
 **Free to decide**: Directory layout for migrations, whether upgrade runs in the lifespan hook or a small entrypoint step, test structure.
 
-**Ask first**: The naming-convention decision for existing installs (see Known Issues), adding any dependency other than Alembic, anything that drops or rewrites existing data.
+**Ask first**: Adding any dependency other than Alembic, anything that drops or rewrites existing data.
 
 ---
 
@@ -66,21 +66,24 @@ Almost every roadmap feature needs a schema change (transfer links, hidden/close
 - [ ] Add naming convention to `Base` in `db.py`
 - [ ] Autogenerate baseline; review it by hand against `models.py`
 
-### Phase 2: Startup and existing installs
+### Phase 2: Startup
 - [ ] Replace `create_all` in `lifespan` with upgrade-to-head
-- [ ] Detect pre-Alembic databases and stamp baseline
+- [ ] Refuse to start on a pre-Alembic database (tables but no `alembic_version`)
 - [ ] Concurrency guard or documented single-instance assumption
 
 ### Phase 3: Tests, CI, docs
 - [ ] Drift test and up/down test, both backends
 - [ ] README updates
-- [ ] Manually upgrade a database created by the current `main` and confirm data intact
+- [ ] Manually: fresh Docker deployment reaches head; restart is a no-op
 
 ---
 
 ## Work Completed
 
 *Fill when IN_PROGRESS or DONE.*
+
+### Key Decisions Made
+- 2026-10-21: No existing installs with data (first deployment is still to come), so constraint-naming option (c) chosen: the naming convention applies from the baseline, and pre-Alembic databases are refused rather than stamped. Decided with the user.
 
 ---
 
@@ -97,7 +100,7 @@ Automated drift and up/down tests on both backends in CI, plus a manual upgrade 
 
 ### Test Cases
 - [ ] Fresh SQLite and PostgreSQL databases reach head
-- [ ] Scaffold-created database is stamped, row counts unchanged
+- [ ] Database with app tables but no `alembic_version` is refused, row counts unchanged
 - [ ] Models and migrations agree (no autogenerate diff)
 - [ ] Downgrade to base succeeds
 
@@ -117,7 +120,7 @@ Automated drift and up/down tests on both backends in CI, plus a manual upgrade 
 
 ## Known Issues & Gotchas
 
-- [ ] Constraint names: existing installs created by `create_all` have database-default constraint names (e.g. Postgres `accounts_user_id_fkey`). If the baseline uses the new naming convention, existing installs and fresh installs will have different names, and later migrations that alter constraints break on one of them. Options: (a) baseline matches default names and the convention applies only to new objects; (b) a one-off migration renames existing constraints; (c) since v0.1 explicitly warned against relying on upgrades, accept a dump/restore for any existing install. Decide before generating the baseline.
+- [x] Constraint names: databases created by `create_all` would have database-default names (e.g. `accounts_user_id_fkey`) that differ from the convention. Resolved: no such installs exist; option (c) chosen (see Key Decisions).
 - [ ] SQLite cannot ALTER most things; batch mode recreates tables. Fine for tests and dev, but keep migrations simple.
 - [ ] `func.extract` and boolean handling already differ between SQLite and Postgres; run the drift test on both.
 
