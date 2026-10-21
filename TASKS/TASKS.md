@@ -101,7 +101,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
-| TASK-C001 | Database migrations (Alembic) | M | IN_PROGRESS | Claude | None | Replace `create_all` with versioned migrations so installs can upgrade in place; blocks every schema change |
+| TASK-C001 | Database migrations (Alembic) | M | REVIEW | Claude | None | Replace `create_all` with versioned migrations so installs can upgrade in place; blocks every schema change |
 
 ---
 
