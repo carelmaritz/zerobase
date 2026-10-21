@@ -1,11 +1,11 @@
 # TASK-C001: Database migrations (Alembic)
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: C - Critical
 **Effort**: M - 3-5 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-10-21
 **Completed**:
 **Branch**: TASK-C001
 **Dependencies**: None
