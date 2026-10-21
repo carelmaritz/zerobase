@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from .models import Account, Category, User
+from .models import Account, Category, Transaction, User
 
 
 class NotAuthenticated(Exception):
@@ -36,3 +36,10 @@ def owned_account(db: Session, user: User, account_id: int) -> Account:
     if account is None or account.user_id != user.id:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
+
+
+def owned_transaction(db: Session, user: User, transaction_id: int) -> Transaction:
+    transaction = db.get(Transaction, transaction_id)
+    if transaction is None or transaction.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return transaction

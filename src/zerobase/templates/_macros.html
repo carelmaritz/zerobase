@@ -32,3 +32,20 @@
 {%- endfor %}
 {%- if ns.group is not none %}</optgroup>{% endif %}
 {%- endmacro %}
+
+{# The fields shared by the add and edit transaction forms. `v` holds the values to show. #}
+{% macro transaction_fields(accounts, categories, inflow, v) -%}
+<label>Account
+  <select name="account_id" required>
+    {% for account in accounts %}
+    <option value="{{ account.id }}"{% if account.id == v.account_id %} selected{% endif %}>{{ account.name }}</option>
+    {% endfor %}
+  </select>
+</label>
+<label>Date <input type="date" name="when" value="{{ v.when }}" required></label>
+<label>Payee <input type="text" name="payee" maxlength="100" value="{{ v.payee or '' }}"></label>
+<label>Category <select name="category_id">{{ category_options(categories, inflow, v.category_id) }}</select></label>
+<label>Memo <input type="text" name="memo" maxlength="255" value="{{ v.memo or '' }}"></label>
+<label>Outflow <input type="text" inputmode="decimal" name="outflow" placeholder="0.00" autocomplete="off" value="{{ v.outflow or '' }}"></label>
+<label>Inflow <input type="text" inputmode="decimal" name="inflow" placeholder="0.00" autocomplete="off" value="{{ v.inflow or '' }}"></label>
+{%- endmacro %}
