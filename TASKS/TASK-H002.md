@@ -1,11 +1,11 @@
 # TASK-H002: Transfers between accounts
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: H - High
 **Effort**: M - 3-5 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-10-22
 **Completed**:
 **Branch**: TASK-H002
 **Dependencies**: TASK-C001, TASK-H007
@@ -60,6 +60,8 @@ YNAB rules this task should follow:
 **Free to decide**: UI layout, route names, how the paired leg is displayed.
 
 **Ask first**: The schema shape (self-FK vs group key vs a separate `transfers` table).
+
+**Settled 2026-10-22**: a self-referencing `transfer_id` on `transactions`; each leg points at the other.
 
 ---
 
