@@ -5,7 +5,7 @@
 All verified on 2026-10-22 unless marked otherwise.
 
 - **`main` is the only active branch**, identical to `origin/main`, with a clean working tree. Carel merged TASK-H001 as PR #2 (`eb46926`), and H001 is recorded as DONE on `main`. The `TASK-H001` branch is deleted locally and on GitHub.
-- **Merged branches still around:** `TASK-C001` and `TASK-H007` locally and on GitHub, plus `add-task-tracking` locally only. Not deleted yet; ask before removing.
+- **No other branches** locally or on GitHub. All merged task branches were deleted with Carel's approval.
 - **Done tasks:** H000, C001, H007, H001. **Next:** H002 (transfers), now unblocked.
 - **Database schema head: revision `0002`** (`src/zerobase/migrations/versions/0002_inflow_category.py`).
 - **Tests:** 56 pass on SQLite and PostgreSQL 16 for the H001 code. `ruff check` and `ruff format --check` are clean.
