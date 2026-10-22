@@ -108,7 +108,6 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
-| TASK-H001 | Edit transactions | S | REVIEW | Claude | None | Edit date, account, payee, memo, category and amount of an existing transaction |
 | TASK-H002 | Transfers between accounts | M | TODO | Unassigned | TASK-C001, TASK-H007 | Linked two-legged transfers that don't count as income or spending between budget accounts |
 | TASK-H003 | Manage categories and groups | M | TODO | Unassigned | TASK-C001 | Rename, reorder, move, hide and delete (with reassignment) categories and groups |
 | TASK-H004 | Manage accounts | S | TODO | Unassigned | TASK-C001 | Rename, close/reopen and delete accounts |
@@ -143,6 +142,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Completed | Assignee | Description |
 |---------|-------|--------|-----------|----------|-------------|
+| TASK-H001 | Edit transactions | S | 2026-10-22 | Claude | Edit page for every transaction field; add and edit share one validation helper |
 | TASK-H007 | Explicit "Inflow: Ready to Assign" category | S | 2026-10-21 | Claude | Built-in inflow category marks income; migration 0002 moves existing income into it |
 | TASK-C001 | Database migrations (Alembic) | M | 2026-10-21 | Claude | Versioned Alembic migrations applied on startup; refuses pre-migration databases |
 | TASK-H000 | Initial scaffold | M | 2026-10-19 | Claude | FastAPI app, envelope maths, auth, accounts, transactions, Docker, CI |

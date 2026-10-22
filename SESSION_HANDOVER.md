@@ -1,21 +1,19 @@
-# Session Handover — 2026-10-22 — Task system, C001 migrations, H007 explicit income, H001 edit transactions, first test deployment
+# Session Handover — 2026-10-22 — Task system, C001 migrations, H007 explicit income, H001 edit transactions, first test deployment (all merged)
 
 ## Current state
 
-All verified at the end of this session unless marked otherwise.
+All verified on 2026-10-22 unless marked otherwise.
 
-- **Checked out: `TASK-H001`**, pushed to `origin/TASK-H001`. Working tree clean apart from this file (committed on the same branch).
-  - TASK-H001 (edit transactions) is **REVIEW**. Carel tried it on the test deployment and said "Perfect", but has **not yet asked for it to be merged**. Ask before merging.
-  - Commits ahead of `main`: `e87d15f` (mark in progress), `6863237` (the feature), `ecb9e88` (related task files and README roadmap), then this handover.
-- **`main` at `6c8d609`** (test-deployment scripts), identical to `origin/main`. It includes TASK-C001 (merged as `68ca576`), TASK-H007 (merged as `41f808e`) and `deploy/lxc/`. `TASK-H001` branched from `41f808e`, so it doesn't contain `deploy/lxc/` until it's merged.
-- **Database schema head: revision `0002`** (`src/zerobase/migrations/versions/0002_inflow_category.py`). TASK-H001 has no schema change.
-- **Tests:** 56 pass on SQLite and on PostgreSQL 16 at `ecb9e88`'s code (`6863237`; the later commit is docs only). `ruff check` and `ruff format --check` are clean.
+- **`main` is the only active branch**, identical to `origin/main`, with a clean working tree. Carel merged TASK-H001 as PR #2 (`eb46926`), and H001 is recorded as DONE on `main`. The `TASK-H001` branch is deleted locally and on GitHub.
+- **Merged branches still around:** `TASK-C001` and `TASK-H007` locally and on GitHub, plus `add-task-tracking` locally only. Not deleted yet; ask before removing.
+- **Done tasks:** H000, C001, H007, H001. **Next:** H002 (transfers), now unblocked.
+- **Database schema head: revision `0002`** (`src/zerobase/migrations/versions/0002_inflow_category.py`).
+- **Tests:** 56 pass on SQLite and PostgreSQL 16 for the H001 code. `ruff check` and `ruff format --check` are clean.
 - **GitHub CI:** status never checked. `gh` isn't installed, so this is **unverified**.
-- **Merged branches still on GitHub:** `add-task-tracking`, `TASK-C001` and `TASK-H007`. Carel can delete them.
-- **Test deployment** (details in memory `test-deployment.md`):
+- **Test deployment** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
   - **Where:** LXC **CT 161 `zerobase` on prox01**, 192.168.1.50, http://zerobase.port115.com or http://192.168.1.50. Plain HTTP, LAN only (nftables inside the CT), root SSH key-only from lnx02.
-  - **What it runs:** branch **`TASK-H001` at `6863237`**, not `main`. It's healthy and the DB is at `0002`.
-  - **Data:** demo user `demo@zerobase.local`. The password isn't recorded in the repo; Carel has it. Carel has since added data of their own: October Ready to Assign was **£1,315.00** at last check, and there's an uncategorised £50 "refund" dated 2026-10-21. Don't reseed or wipe it without asking.
+  - **What it runs:** **`main`**, healthy, DB at `0002`.
+  - **Data:** demo user `demo@zerobase.local`. The password isn't recorded in the repo; Carel has it. Carel has added data of their own: October Ready to Assign was **£1,315.00** at last check, and there's an uncategorised £50 "refund" dated 2026-10-21. Don't reseed or wipe it without asking.
   - **Backups:** in `/opt/zerobase/backups/` on the CT: `zerobase-20261021-123818.sql.gz` (after seeding) and `zerobase-20261021-172711.sql.gz` (just before migration 0002).
 
 ## Completed this session
@@ -35,7 +33,7 @@ All verified at the end of this session unless marked otherwise.
 4. **TASK-H007 ("Inflow: Ready to Assign" category), DONE.**
    - Decision: option B, YNAB style (rationale in `TASKS/TASK-H007.md`).
    - Migration 0002 converted the live demo data with Ready to Assign unchanged (verified: September £3,295.00, October £315.00).
-5. **TASK-H001 (edit transactions), REVIEW.**
+5. **TASK-H001 (edit transactions), DONE** (merged by Carel as PR #2).
    - Separate edit page: `GET`/`POST /transactions/{id}/edit`.
    - Add and edit share `_validate()` and the `transaction_fields` macro.
    - `return_to` keeps the account filter through the edit.
@@ -45,10 +43,14 @@ All verified at the end of this session unless marked otherwise.
 
 ## Next steps
 
-1. **Ask Carel whether to merge TASK-H001.** If yes, in one commit on the branch set Status DONE and Completed in `TASKS/TASK-H001.md` and move the row to the Completed archive in `TASKS/TASKS.md`. Then `git checkout main && git merge --no-ff TASK-H001`, run the tests, push, and switch CT 161 to `main` (command under Landmines). Done when `main` contains H001 and the CT reports `main`'s head.
-2. **TASK-H002 (transfers).** It's unblocked now that C001 and H007 are done. The task file says **ask first about the schema shape** (see Open decisions). Then follow its plan: migration, `build_budget` uncategorised exclusion for budget-to-budget legs, create/edit/delete keeping both legs in sync (extend `edit_transaction`/`delete_transaction`). Done when its success criteria pass on SQLite and PostgreSQL and on the CT.
-3. **Remove the stale warnings in `DEPLOYMENT.md`** (line 5, "container build has **not** yet been run on a real Docker host", and line ~267). They're no longer true: the build ran on CT 161 on 2026-10-21. Small docs commit.
-4. **After that, in priority order:** H003 (categories; must protect the inflow category), H004 (accounts), H005 (credit cards, needs H002), H006 (CSV import).
+1. **TASK-H002 (transfers).** The task file says **ask first about the schema shape** (see Open decisions), so start by putting the options to Carel. Then follow its plan:
+   - a migration
+   - in `build_budget`, leave budget-to-budget legs out of the uncategorised count
+   - create, edit and delete that keep both legs in sync, by extending `edit_transaction` and `delete_transaction` and reusing `_validate()`
+
+   Done when its success criteria pass on SQLite, on PostgreSQL and on CT 161 (deploy the branch there for Carel to try; see `deploy/lxc/README.md`).
+2. **Remove the stale warnings in `DEPLOYMENT.md`** (line 5, "container build has **not** yet been run on a real Docker host", and line ~267). They're no longer true: the build ran on CT 161 on 2026-10-21. Small docs commit.
+3. **After that, in priority order:** H003 (categories; must protect the inflow category), H004 (accounts), H005 (credit cards, needs H002), H006 (CSV import).
 
 ## Open decisions
 
