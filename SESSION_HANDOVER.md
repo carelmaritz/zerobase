@@ -7,7 +7,7 @@ All verified at the end of this session unless marked otherwise.
 - **Checked out: `TASK-H001`**, pushed to `origin/TASK-H001`. Working tree clean apart from this file (committed on the same branch).
   - TASK-H001 (edit transactions) is **REVIEW**. Carel tried it on the test deployment and said "Perfect", but has **not yet asked for it to be merged**. Ask before merging.
   - Commits ahead of `main`: `e87d15f` (mark in progress), `6863237` (the feature), `ecb9e88` (related task files and README roadmap), then this handover.
-- **`main` at `41f808e`** (Merge TASK-H007), identical to `origin/main`. It includes TASK-C001 (merged as `68ca576`) and TASK-H007.
+- **`main` at `6c8d609`** (test-deployment scripts), identical to `origin/main`. It includes TASK-C001 (merged as `68ca576`), TASK-H007 (merged as `41f808e`) and `deploy/lxc/`. `TASK-H001` branched from `41f808e`, so it doesn't contain `deploy/lxc/` until it's merged.
 - **Database schema head: revision `0002`** (`src/zerobase/migrations/versions/0002_inflow_category.py`). TASK-H001 has no schema change.
 - **Tests:** 56 pass on SQLite and on PostgreSQL 16 at `ecb9e88`'s code (`6863237`; the later commit is docs only). `ruff check` and `ruff format --check` are clean.
 - **GitHub CI:** status never checked. `gh` isn't installed, so this is **unverified**.
@@ -41,6 +41,7 @@ All verified at the end of this session unless marked otherwise.
    - `return_to` keeps the account filter through the edit.
    - Smoke-tested on the deployment (re-saving the same values left everything unchanged).
 6. **Related task files updated for H001:** L001, H002, M006 and the README roadmap.
+7. **Test-deployment scripts saved in the repo** (on `main`): `deploy/lxc/provision-zerobase.sh` (builds CT 161; default branch `main`), `deploy/lxc/seed_demo.py` (updated for the inflow category) and `deploy/lxc/README.md`. The seed script was verified against a local instance: October Ready to Assign came out at £315.00, as on the original demo.
 
 ## Next steps
 
@@ -57,7 +58,6 @@ All verified at the end of this session unless marked otherwise.
   - a separate `transfers` table
 
   No leaning recorded yet. Credit card payments (H005) must be able to reuse it.
-- **Provisioning script.** `provision-zerobase.sh` (creates CT 161) exists **only in the session scratchpad under `/tmp/claude-1000/...`, which is not durable**, and may already be gone. Offered to add it under `deploy/` like Home_Web_Games, but no answer yet. The concern: it contains LAN addresses and a public key, and the repo may be public. If it's lost, the steps are summarised in memory `test-deployment.md`.
 - **HTTPS.** The deployment is plain HTTP on the LAN. Options: Home_Web_Games' proxy01, or the bundled Caddy. Not started; do it before real use.
 - **UI polish is deferred.** Carel: back end first, and the plain UI is fine for testing (memory `backend-first-priority.md`). Don't propose visual work until Carel raises it.
 - **H003:** whether to accept that merging categories can change past overspending (Known Issues in `TASKS/TASK-H003.md`).
@@ -79,8 +79,8 @@ All verified at the end of this session unless marked otherwise.
   - `/budget/assign` returns 404 for it.
 - **`inflow_category()`** (`budget.py`) is get-or-create and only `flush()`es, so callers must commit. `_pickers()` in `routers/transactions.py` commits on purpose, even on GET.
 - **Income rule:** income is the inflow category, either sign. A blank category means uncategorised (both directions) and counts nowhere. Budget-to-budget transfer legs will have no category, so H002 must exclude them from the uncategorised warning.
-- **Redeploying CT 161:** `ssh root@192.168.1.50 'cd /opt/zerobase && git fetch -q origin && git checkout -q <branch> && git reset -q --hard origin/<branch> && docker compose up -d --build'`. Run `./scripts/backup.sh` first if the deploy includes a migration. Compose leaves the app container alone when the image hasn't changed; that's normal. Never touch other guests on the cluster (VMIDs 100–160).
+- **Redeploying CT 161** (also in `deploy/lxc/README.md` on `main`): `ssh root@192.168.1.50 'cd /opt/zerobase && git fetch -q origin && git checkout -q <branch> && git reset -q --hard origin/<branch> && docker compose up -d --build'`. Run `./scripts/backup.sh` first if the deploy includes a migration. Compose leaves the app container alone when the image hasn't changed; that's normal. Never touch other guests on the cluster (VMIDs 100–160).
 - **PostgreSQL tests locally:** `podman run -d --rm --name zb-pg -e POSTGRES_PASSWORD=t -e POSTGRES_DB=zb -p 55432:5432 docker.io/library/postgres:16`, then `ZEROBASE_TEST_DATABASE_URL=postgresql+psycopg://postgres:t@127.0.0.1:55432/zb .venv/bin/python -m pytest -q`.
-- **Demo seed script:** `seed_demo.py` in the scratchpad is outdated. It posts salaries with no category, which since H007 means uncategorised rather than income.
+- **Demo seed script:** `deploy/lxc/seed_demo.py` needs registration open and an empty target. Don't rerun it on CT 161, where the demo user already exists and Carel has added data.
 - **Known gap, not fixed:** `HEAD /` returns 405.
 - **Commit attribution:** commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
