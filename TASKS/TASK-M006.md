@@ -61,7 +61,7 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
 - [ ] Migration and model; cleared toggle; account balance breakdown
 ### Phase 2
 - [ ] Reconcile flow and adjustment
-- [ ] Reconciled-edit guard in the TASK-H001 edit route
+- [ ] Reconciled-edit guard in `edit_transaction` (`POST /transactions/{id}/edit`, TASK-H001)
 
 ---
 

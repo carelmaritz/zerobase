@@ -149,7 +149,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 ---
 
-*Last Updated: 2026-10-21*
+*Last Updated: 2026-10-22*
 
 ## Quick Reference
 
