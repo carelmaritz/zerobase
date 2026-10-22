@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_macros.html" import transaction_fields %}
+{% block title %}Edit transaction{% endblock %}
+{% block content %}
+<h1>Edit transaction</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<section class="card">
+  <form method="post" action="/transactions/{{ transaction.id }}/edit" class="grid-form">
+    {% if return_to is not none %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+    {{ transaction_fields(accounts, categories, inflow, values) }}
+    <button type="submit" class="primary">Save</button>
+  </form>
+  <p class="muted">Category is ignored for tracking accounts. <a href="{{ back_url }}">Cancel</a></p>
+</section>
+{% endblock %}

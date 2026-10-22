@@ -204,3 +204,138 @@ def test_income_uses_the_inflow_category(client, db):
         "/budget/assign", data={"category_id": inflow.id, "month": THIS_MONTH, "amount": "5"}
     )
     assert refused.status_code == 404
+
+
+def _edit_setup(client, db):
+    """A user with a budget account, a tracking account and one Tesco transaction."""
+    register(client)
+    client.post("/accounts", data={"name": "Current", "on_budget": "1", "opening_balance": "1000"})
+    client.post("/accounts", data={"name": "Mortgage"})
+    current = db.scalar(select(Account.id).where(Account.name == "Current"))
+    mortgage = db.scalar(select(Account.id).where(Account.name == "Mortgage"))
+    groceries = category_id(db, "Groceries")
+    client.post(
+        "/transactions",
+        data={
+            "account_id": current,
+            "when": date.today().isoformat(),
+            "payee": "Tesco",
+            "category_id": groceries,
+            "outflow": "25.50",
+        },
+    )
+    txn = db.scalar(select(Transaction).where(Transaction.payee == "Tesco"))
+    return {"current": current, "mortgage": mortgage, "groceries": groceries, "txn": txn}
+
+
+def _edit(client, s, **changes):
+    t = s["txn"]
+    data = {
+        "account_id": t.account_id,
+        "when": t.date.isoformat(),
+        "payee": t.payee,
+        "memo": t.memo,
+        "category_id": t.category_id or "",
+        "outflow": "25.50",
+        "inflow": "",
+        **changes,
+    }
+    return client.post(f"/transactions/{t.id}/edit", data=data, follow_redirects=False)
+
+
+def test_edit_form_shows_the_transaction(client, db):
+    s = _edit_setup(client, db)
+    page = client.get(f"/transactions/{s['txn'].id}/edit").text
+    assert 'value="Tesco"' in page and 'value="25.50"' in page
+    assert f'<option value="{s["groceries"]}" selected>Groceries</option>' in page
+    assert f'href="/transactions/{s["txn"].id}/edit"' in client.get("/transactions").text
+
+
+def test_edit_every_field_updates_balances_and_budget(client, db):
+    s = _edit_setup(client, db)
+    dining = category_id(db, "Dining out")
+    response = _edit(
+        client,
+        s,
+        payee="Pizza",
+        memo="birthday",
+        category_id=dining,
+        outflow="40",
+        when="2026-09-15",
+    )
+    assert response.status_code == 303 and response.headers["location"] == "/transactions"
+
+    db.refresh(s["txn"])
+    t = s["txn"]
+    assert (t.payee, t.memo, t.category_id, t.amount, t.date) == (
+        "Pizza",
+        "birthday",
+        dining,
+        -4_000,
+        date(2026, 9, 15),
+    )
+    assert "£960.00" in client.get("/accounts").text  # 1,000 - 40
+    september = client.get("/budget?month=2026-09").text
+    assert f'id="act-{dining}" class="num neg">-£40.00' in september
+    assert f'id="act-{s["groceries"]}" class="num zero">£0.00' in september
+
+
+def test_edit_into_the_inflow_category_makes_it_income(client, db):
+    s = _edit_setup(client, db)
+    inflow = db.scalar(select(Category.id).where(Category.kind == "inflow"))
+    _edit(client, s, category_id=inflow, outflow="", inflow="25.50")
+    assert "£1,025.50" in client.get(f"/budget?month={THIS_MONTH}").text
+
+
+def test_moving_to_a_tracking_account_clears_the_category(client, db):
+    s = _edit_setup(client, db)
+    _edit(client, s, account_id=s["mortgage"])
+    db.refresh(s["txn"])
+    assert (s["txn"].account_id, s["txn"].category_id) == (s["mortgage"], None)
+
+
+def test_invalid_edit_reshows_the_form_and_changes_nothing(client, db):
+    s = _edit_setup(client, db)
+    for changes, message in [
+        ({"inflow": "1"}, "either an outflow or an inflow"),
+        ({"outflow": "0"}, "cannot be zero"),
+        ({"when": "nope"}, "valid date"),
+        ({"outflow": "abc", "payee": "Typo"}, "not a valid amount"),
+    ]:
+        response = _edit(client, s, **changes)
+        assert response.status_code == 400 and message in response.text
+    assert 'value="Typo"' in response.text and 'value="abc"' in response.text
+    db.refresh(s["txn"])
+    assert (s["txn"].payee, s["txn"].amount) == ("Tesco", -2_550)
+
+
+def test_edit_returns_to_the_filtered_list(client, db):
+    s = _edit_setup(client, db)
+    page = client.get(f"/transactions?account_id={s['current']}").text
+    assert f"/edit?return_to={s['current']}" in page
+    form = client.get(f"/transactions/{s['txn'].id}/edit?return_to={s['current']}").text
+    assert f'name="return_to" value="{s["current"]}"' in form
+    response = _edit(client, s, return_to=str(s["current"]))
+    assert response.headers["location"] == f"/transactions?account_id={s['current']}"
+
+
+def test_other_users_transactions_and_accounts_cannot_be_edited(client, db):
+    s = _edit_setup(client, db)
+    other = User(email="other@example.com", password_hash=hash_password(PASSWORD))
+    db.add(other)
+    db.flush()
+    theirs = Account(user_id=other.id, name="Theirs")
+    db.add(theirs)
+    db.flush()
+    their_txn = Transaction(
+        user_id=other.id, account_id=theirs.id, date=date.today(), payee="Secret", amount=-100
+    )
+    db.add(their_txn)
+    db.commit()
+
+    assert client.get(f"/transactions/{their_txn.id}/edit").status_code == 404
+    data = {"account_id": theirs.id, "when": date.today().isoformat(), "outflow": "1"}
+    assert client.post(f"/transactions/{their_txn.id}/edit", data=data).status_code == 404
+    assert _edit(client, s, account_id=theirs.id).status_code == 404  # move into their account
+    db.refresh(s["txn"])
+    assert s["txn"].account_id == s["current"]

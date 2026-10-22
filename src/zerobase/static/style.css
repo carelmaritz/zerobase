@@ -129,6 +129,8 @@ tbody th[scope="row"] { font-weight: 400; }
 .num.neg { color: var(--neg-fg); }
 
 form.assign { margin: 0; }
+.row-actions { display: flex; gap: .75rem; align-items: center; white-space: nowrap; }
+.row-actions form { margin: 0; }
 input.amt { width: 7.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 40rem) {

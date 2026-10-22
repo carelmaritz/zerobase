@@ -22,7 +22,7 @@ Give the user a clear message wherever a form currently fails silently or return
 
 Found while reviewing the scaffold:
 
-1. `add_transaction` (`routers/transactions.py`) wraps `owned_category(...)` in `try/except ValueError` meant to show "Choose a valid category." But `owned_category` raises `HTTPException(404)`, so a category ID that exists but belongs to someone else (or was just deleted in another tab) returns a bare 404 instead of the form with an error. Only non-numeric input reaches the friendly message.
+1. `_validate()` (`routers/transactions.py`, shared by add and edit since TASK-H001) wraps `owned_category(...)` in `try/except ValueError` meant to show "Choose a valid category." But `owned_category` raises `HTTPException(404)`, so a category ID that exists but belongs to someone else (or was just deleted in another tab) returns a bare 404 instead of the form with an error. Only non-numeric input reaches the friendly message.
 2. `add_group` and `add_category` (`routers/budget.py`) silently ignore an empty or over-60-character name and redirect back with no message. `add_category` also silently ignores a group ID that isn't the user's.
 3. `set_category` returns a bare 400/404 for bad IDs. For an htmx request the user sees nothing happen.
 
@@ -43,7 +43,7 @@ None of these lose data; they're confusing.
 ### Out of Scope
 
 - Redesigning error display generally.
-- Anything in TASK-H001's shared validation helper (if H001 lands first, fix (1) there instead and note it here).
+- Redesigning TASK-H001's shared validation helper beyond fixing (1) in it. The same applies to a foreign account ID (`owned_account` also raises 404).
 
 ---
 

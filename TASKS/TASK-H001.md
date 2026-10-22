@@ -1,11 +1,11 @@
 # TASK-H001: Edit transactions
 
-**Status**: TODO
+**Status**: REVIEW
 **Priority**: H - High
 **Effort**: S - 1-2 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-10-21
 **Completed**:
 **Branch**: TASK-H001
 **Dependencies**: None
@@ -20,7 +20,7 @@ Let the user edit every field of an existing transaction (date, account, payee, 
 
 ## Background
 
-Today a transaction can only have its category changed (`POST /transactions/{id}/category`) or be deleted. Typos in amount or date mean delete and re-add. Editing needs no schema change, so it can start before TASK-C001.
+Today a transaction can only have its category changed (`POST /transactions/{id}/category`) or be deleted. Typos in amount or date mean delete and re-add. Editing needs no schema change.
 
 ---
 
@@ -33,11 +33,11 @@ Today a transaction can only have its category changed (`POST /transactions/{id}
 - After saving, return to the same transactions view (keep `account_id` filter if one was active).
 
 ### Success Criteria
-- [ ] Every field can be edited and the change is reflected in account balances and the budget view
-- [ ] Invalid input re-shows the form with an error and changes nothing
-- [ ] Editing another user's transaction returns 404
-- [ ] Moving a categorised transaction to a tracking account clears its category
-- [ ] Add and edit share one validation helper
+- [x] Every field can be edited and the change is reflected in account balances and the budget view
+- [x] Invalid input re-shows the form with an error and changes nothing
+- [x] Editing another user's transaction returns 404
+- [x] Moving a categorised transaction to a tracking account clears its category
+- [x] Add and edit share one validation helper
 
 ### Out of Scope
 
@@ -59,19 +59,25 @@ Today a transaction can only have its category changed (`POST /transactions/{id}
 ## Implementation Plan
 
 ### Phase 1: Shared validation
-- [ ] Extract transaction-form parsing into a helper returning either a validated value object or an error message
-- [ ] Switch `add_transaction` to it; existing tests must still pass
+- [x] Extract transaction-form parsing into a helper returning either a validated value object or an error message
+- [x] Switch `add_transaction` to it; existing tests must still pass
 
 ### Phase 2: Edit
-- [ ] GET edit form, POST update route
-- [ ] Template changes (edit link or button per row)
-- [ ] Tests
+- [x] GET edit form, POST update route
+- [x] Template changes (edit link or button per row)
+- [x] Tests
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+Chose a separate edit page over an inline row: works without JavaScript, needs no new htmx behaviour, and keeps UI work minimal (back end first).
+
+- `routers/transactions.py`: `TransactionForm` (raw fields, built by the `_form` dependency) and `_validate()` returning a `ValidTransaction` or an error message, used by both add and edit. `_pickers()` gathers accounts and categories for both forms. New `GET /transactions/{id}/edit` and `POST /transactions/{id}/edit`; a `return_to` account ID carries the list filter through and back.
+- `deps.py`: `owned_transaction()`.
+- Templates: `transaction_fields` macro shared by the add form and the new `transaction_edit.html`; an Edit link on each row. On error the edit form re-shows what was typed.
+- The inline set-category route is kept: it's the quick way to categorise from the list.
+- Tests: 7 web tests (form prefill, every field incl. a month change, inflow category, move to tracking, four kinds of invalid input, return-to filter, other user's transaction and account). 56 pass on SQLite and PostgreSQL 16.
 
 ---
 
@@ -84,11 +90,11 @@ None yet.
 ## Testing
 
 ### Test Cases
-- [ ] Edit amount: account balance and category activity change accordingly
-- [ ] Edit date across a month boundary: activity moves months, rollover recalculated
-- [ ] Change a transaction's category to "Inflow: Ready to Assign": it becomes income and Ready to Assign rises
-- [ ] Invalid date, both amounts, zero amount: 400 with message, row unchanged
-- [ ] Other user's transaction: 404
+- [x] Edit amount: account balance and category activity change accordingly
+- [x] Edit date across a month boundary: activity moves months, rollover recalculated
+- [x] Change a transaction's category to "Inflow: Ready to Assign": it becomes income and Ready to Assign rises
+- [x] Invalid date, both amounts, zero amount: 400 with message, row unchanged
+- [x] Other user's transaction: 404
 
 ---
 

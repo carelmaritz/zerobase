@@ -72,7 +72,7 @@ YNAB rules this task should follow:
 
 ### Phase 2: Create, edit, delete
 - [ ] Create route and form changes
-- [ ] Delete and edit keep both legs in sync (coordinate with TASK-H001's edit route)
+- [ ] Delete and edit keep both legs in sync: extend `edit_transaction` and `delete_transaction` in `routers/transactions.py` (TASK-H001), reusing `_validate()`
 
 ### Phase 3: Web tests
 - [ ] End-to-end tests for each combination and for isolation between users

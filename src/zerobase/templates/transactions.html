@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import category_options %}
+{% from "_macros.html" import category_options, transaction_fields %}
 {% block title %}Transactions{% endblock %}
 {% block content %}
 <h1>Transactions</h1>
@@ -11,19 +11,7 @@
 <section class="card">
   <h2>Add a transaction</h2>
   <form method="post" action="/transactions" class="grid-form">
-    <label>Account
-      <select name="account_id" required>
-        {% for account in accounts %}
-        <option value="{{ account.id }}"{% if account.id == account_id %} selected{% endif %}>{{ account.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>Date <input type="date" name="when" value="{{ today }}" required></label>
-    <label>Payee <input type="text" name="payee" maxlength="100"></label>
-    <label>Category <select name="category_id">{{ category_options(categories, inflow) }}</select></label>
-    <label>Memo <input type="text" name="memo" maxlength="255"></label>
-    <label>Outflow <input type="text" inputmode="decimal" name="outflow" placeholder="0.00" autocomplete="off"></label>
-    <label>Inflow <input type="text" inputmode="decimal" name="inflow" placeholder="0.00" autocomplete="off"></label>
+    {{ transaction_fields(accounts, categories, inflow, values) }}
     <button type="submit" class="primary">Add</button>
   </form>
   <p class="muted">For income, choose Inflow: Ready to Assign.</p>
@@ -65,7 +53,8 @@
       <td>{{ t.memo }}</td>
       <td class="r">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>
       <td class="r">{% if t.amount > 0 %}{{ t.amount|money }}{% endif %}</td>
-      <td>
+      <td class="row-actions">
+        <a href="/transactions/{{ t.id }}/edit{% if account_id is not none %}?return_to={{ account_id }}{% endif %}" aria-label="Edit transaction">Edit</a>
         <form method="post" action="/transactions/{{ t.id }}/delete">
           <button class="link danger" type="submit" aria-label="Delete transaction">Delete</button>
         </form>
