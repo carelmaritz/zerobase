@@ -92,9 +92,29 @@ class Transaction(Base):
     payee: Mapped[str] = mapped_column(String(100), default="")
     memo: Mapped[str] = mapped_column(String(255), default="")
     amount: Mapped[int] = mapped_column(BigInteger)  # signed minor units
+    # A transfer is two transactions, one per account, each pointing at the other.
+    # The app deletes both legs together; SET NULL only stops a stray delete leaving a
+    # dangling ID.
+    transfer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     account: Mapped[Account] = relationship()
     category: Mapped[Category | None] = relationship()
+    # Read-only: routers set transfer_id directly, since the two legs refer to each other.
+    transfer: Mapped["Transaction | None"] = relationship(
+        remote_side="Transaction.id", foreign_keys=[transfer_id], viewonly=True
+    )
+
+    @property
+    def takes_category(self) -> bool:
+        """Only a budget-account leg can have a category, and not if money stays in the budget.
+
+        That is, not on a transfer between two budget accounts. Needs ``transfer`` loaded.
+        """
+        if not self.account.on_budget:
+            return False
+        return self.transfer is None or not self.transfer.account.on_budget
 
 
 class Assignment(Base):

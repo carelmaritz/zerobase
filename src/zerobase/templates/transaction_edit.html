@@ -11,6 +11,7 @@
     {{ transaction_fields(accounts, categories, inflow, values) }}
     <button type="submit" class="primary">Save</button>
   </form>
-  <p class="muted">Category is ignored for tracking accounts. <a href="{{ back_url }}">Cancel</a></p>
+  <p class="muted">Category is ignored for tracking accounts. Changes to a transfer apply to both of its sides.
+    <a href="{{ back_url }}">Cancel</a></p>
 </section>
 {% endblock %}

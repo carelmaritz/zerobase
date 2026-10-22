@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from zerobase.models import Account, Category, CategoryGroup, Transaction, User
 from zerobase.security import hash_password
@@ -339,3 +339,187 @@ def test_other_users_transactions_and_accounts_cannot_be_edited(client, db):
     assert _edit(client, s, account_id=theirs.id).status_code == 404  # move into their account
     db.refresh(s["txn"])
     assert s["txn"].account_id == s["current"]
+
+
+def _transfer_setup(client, db):
+    """Current (budget, £1,000), Savings (budget) and Mortgage (tracking)."""
+    register(client)
+    client.post("/accounts", data={"name": "Current", "on_budget": "1", "opening_balance": "1000"})
+    client.post("/accounts", data={"name": "Savings", "on_budget": "1"})
+    client.post("/accounts", data={"name": "Mortgage"})
+    ids = dict(db.execute(select(Account.name, Account.id)).all())
+    return {
+        "current": ids["Current"],
+        "savings": ids["Savings"],
+        "mortgage": ids["Mortgage"],
+        "groceries": category_id(db, "Groceries"),
+    }
+
+
+def _add_transfer(client, source, target, amount="200", **extra):
+    data = {
+        "account_id": source,
+        "transfer_account_id": target,
+        "when": date.today().isoformat(),
+        "outflow": amount,
+        **extra,
+    }
+    return client.post("/transactions", data=data, follow_redirects=False)
+
+
+def _legs(db):
+    db.expire_all()
+    return db.scalars(
+        select(Transaction).where(Transaction.transfer_id.is_not(None)).order_by(Transaction.id)
+    ).all()
+
+
+def test_budget_to_budget_transfer(client, db):
+    s = _transfer_setup(client, db)
+    assert _add_transfer(client, s["current"], s["savings"], payee="Rainy day").status_code == 303
+
+    out, into = _legs(db)
+    assert (out.account_id, out.amount, out.category_id) == (s["current"], -20_000, None)
+    assert (into.account_id, into.amount, into.category_id) == (s["savings"], 20_000, None)
+    assert (out.transfer_id, into.transfer_id) == (into.id, out.id)
+
+    accounts = client.get("/accounts").text
+    assert "£800.00" in accounts and "£200.00" in accounts
+    budget = client.get(f"/budget?month={THIS_MONTH}").text
+    assert "£1,000.00" in budget and "uncategorised" not in budget
+    page = client.get("/transactions").text
+    assert "Transfer to Savings" in page and "Transfer from Current" in page
+
+
+def test_transfer_to_tracking_needs_a_category_and_counts_as_spending(client, db):
+    s = _transfer_setup(client, db)
+    refused = _add_transfer(client, s["current"], s["mortgage"])
+    assert refused.status_code == 400 and "Choose a category" in refused.text
+    assert _legs(db) == []
+
+    _add_transfer(client, s["current"], s["mortgage"], category_id=s["groceries"])
+    budget = client.get(f"/budget?month={THIS_MONTH}").text
+    assert f'id="act-{s["groceries"]}" class="num neg">-£200.00' in budget
+    assert "£200.00" in client.get("/accounts").text  # the mortgage leg
+
+
+def test_category_from_the_tracking_side_lands_on_the_budget_leg(client, db):
+    s = _transfer_setup(client, db)
+    inflow = db.scalar(select(Category.id).where(Category.kind == "inflow"))
+    client.post(
+        "/transactions",
+        data={
+            "account_id": s["mortgage"],
+            "transfer_account_id": s["current"],
+            "when": date.today().isoformat(),
+            "outflow": "50",
+            "category_id": inflow,
+        },
+    )
+    tracking_leg, budget_leg = _legs(db)
+    assert (tracking_leg.account_id, tracking_leg.category_id) == (s["mortgage"], None)
+    assert (budget_leg.account_id, budget_leg.category_id) == (s["current"], inflow)
+    assert "£1,050.00" in client.get(f"/budget?month={THIS_MONTH}").text
+
+
+def test_transfer_validation(client, db):
+    s = _transfer_setup(client, db)
+    same = _add_transfer(client, s["current"], s["current"])
+    assert same.status_code == 400 and "two different accounts" in same.text
+    categorised = _add_transfer(client, s["current"], s["savings"], category_id=s["groceries"])
+    assert categorised.status_code == 400 and "Leave the category blank" in categorised.text
+    assert _legs(db) == []
+
+
+def test_editing_either_leg_updates_both(client, db):
+    s = _transfer_setup(client, db)
+    _add_transfer(client, s["current"], s["savings"])
+    out, into = _legs(db)
+
+    form = client.get(f"/transactions/{into.id}/edit").text
+    assert f'<option value="{s["current"]}" selected>Current</option>' in form
+    data = {
+        "account_id": s["savings"],
+        "transfer_account_id": s["current"],
+        "when": "2026-09-30",
+        "payee": "Top-up",
+        "inflow": "75",
+    }
+    assert client.post(f"/transactions/{into.id}/edit", data=data).status_code == 200
+    out, into = _legs(db)
+    assert (out.amount, out.date, out.payee) == (-7_500, date(2026, 9, 30), "Top-up")
+    assert (into.amount, into.date, into.payee) == (7_500, date(2026, 9, 30), "Top-up")
+
+    # Point it at the mortgage instead: the other leg moves, and now needs a category.
+    data = {**data, "transfer_account_id": s["mortgage"], "category_id": s["groceries"]}
+    client.post(f"/transactions/{into.id}/edit", data=data)
+    out, into = _legs(db)
+    assert (out.account_id, out.category_id) == (s["mortgage"], None)
+    assert (into.account_id, into.category_id) == (s["savings"], s["groceries"])
+
+    # No longer a transfer: the other leg goes.
+    out_id, into_id = out.id, into.id
+    data = {**data, "transfer_account_id": ""}
+    client.post(f"/transactions/{into_id}/edit", data=data)
+    assert _legs(db) == []
+    assert db.get(Transaction, out_id) is None
+    assert db.get(Transaction, into_id).amount == 7_500
+
+
+def test_a_plain_transaction_can_become_a_transfer(client, db):
+    s = _transfer_setup(client, db)
+    client.post(
+        "/transactions",
+        data={"account_id": s["current"], "when": date.today().isoformat(), "outflow": "30"},
+    )
+    plain = db.scalar(select(Transaction).where(Transaction.amount == -3_000))
+    data = {
+        "account_id": s["current"],
+        "transfer_account_id": s["savings"],
+        "when": plain.date.isoformat(),
+        "outflow": "30",
+    }
+    client.post(f"/transactions/{plain.id}/edit", data=data)
+    out, into = _legs(db)
+    assert (out.id, into.account_id, into.amount) == (plain.id, s["savings"], 3_000)
+
+
+def test_deleting_either_leg_deletes_both(client, db):
+    s = _transfer_setup(client, db)
+    for delete_second in (False, True):
+        _add_transfer(client, s["current"], s["savings"])
+        legs = _legs(db)
+        client.post(f"/transactions/{legs[delete_second].id}/delete")
+        assert _legs(db) == []
+        assert db.scalar(select(func.count(Transaction.id))) == 1  # the opening balance
+
+
+def test_transfer_legs_between_budget_accounts_take_no_category_inline(client, db):
+    s = _transfer_setup(client, db)
+    _add_transfer(client, s["current"], s["savings"])
+    out, _ = _legs(db)
+    client.post(f"/transactions/{out.id}/category", data={"category_id": s["groceries"]})
+    db.refresh(out)
+    assert out.category_id is None
+
+
+def test_cannot_transfer_to_another_users_account(client, db):
+    s = _transfer_setup(client, db)
+    other = User(email="other@example.com", password_hash=hash_password(PASSWORD))
+    db.add(other)
+    db.flush()
+    theirs = Account(user_id=other.id, name="Theirs")
+    db.add(theirs)
+    db.commit()
+
+    assert _add_transfer(client, s["current"], theirs.id).status_code == 404
+    _add_transfer(client, s["current"], s["savings"])
+    out, _ = _legs(db)
+    data = {
+        "account_id": s["current"],
+        "transfer_account_id": theirs.id,
+        "when": date.today().isoformat(),
+        "outflow": "200",
+    }
+    assert client.post(f"/transactions/{out.id}/edit", data=data).status_code == 404
+    assert db.scalar(select(func.count()).where(Transaction.account_id == theirs.id)) == 0

@@ -16,8 +16,8 @@ The model follows the zero-based / YNAB approach:
 from dataclasses import dataclass, field
 from datetime import date
 
-from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from .models import Account, Assignment, Category, CategoryGroup, Transaction
 
@@ -133,6 +133,9 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
             activity[(category_id, _year_month(y, m))] = int(total)
 
     # Uncategorised transactions would otherwise vanish from the maths, so surface them.
+    # A transfer leg to another budget account needs no category, so it isn't flagged.
+    other_leg = aliased(Transaction)
+    other_account = aliased(Account)
     uncat_count, uncat_outflow, uncat_inflow = db.execute(
         select(
             func.count(Transaction.id),
@@ -140,11 +143,14 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
             func.coalesce(func.sum(case((Transaction.amount > 0, Transaction.amount))), 0),
         )
         .join(Account, Account.id == Transaction.account_id)
+        .outerjoin(other_leg, other_leg.id == Transaction.transfer_id)
+        .outerjoin(other_account, other_account.id == other_leg.account_id)
         .where(
             Transaction.user_id == user_id,
             Account.on_budget.is_(True),
             Transaction.category_id.is_(None),
             Transaction.date < next_month,
+            or_(other_account.id.is_(None), other_account.on_budget.is_(False)),
         )
     ).one()
 
