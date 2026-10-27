@@ -523,3 +523,13 @@ def test_cannot_transfer_to_another_users_account(client, db):
     }
     assert client.post(f"/transactions/{out.id}/edit", data=data).status_code == 404
     assert db.scalar(select(func.count()).where(Transaction.account_id == theirs.id)) == 0
+
+
+def test_a_refused_add_reshows_what_was_typed(client, db):
+    s = _transfer_setup(client, db)
+    refused = _add_transfer(client, s["savings"], s["mortgage"], amount="12.34", payee="Overpay")
+    assert refused.status_code == 400 and "Choose a category" in refused.text
+    page = refused.text
+    assert f'<option value="{s["savings"]}" selected>Savings</option>' in page
+    assert f'<option value="{s["mortgage"]}" selected>Mortgage</option>' in page
+    assert 'value="12.34"' in page and 'value="Overpay"' in page

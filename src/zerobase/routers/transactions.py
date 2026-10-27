@@ -40,6 +40,7 @@ def _page(
     account_id: int | None = None,
     error: str | None = None,
     status: int = 200,
+    values: dict | None = None,
 ):
     query = (
         select(Transaction)
@@ -60,7 +61,7 @@ def _page(
         "transactions": db.scalars(query).unique().all(),
         **_pickers(db, user),
         "account_id": account_id,
-        "values": {"account_id": account_id, "when": date.today().isoformat()},
+        "values": values or {"account_id": account_id, "when": date.today().isoformat()},
         "page_size": PAGE_SIZE,
         "error": error,
     }
@@ -239,7 +240,7 @@ def add_transaction(
 ):
     valid = _validate(db, user, form)
     if isinstance(valid, str):
-        return _page(request, db, user, error=valid, status=400)
+        return _page(request, db, user, error=valid, status=400, values=form.values())
     transaction = Transaction(user_id=user.id)
     db.add(transaction)
     _save(db, user, valid, transaction)
