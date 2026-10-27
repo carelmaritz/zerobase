@@ -1,12 +1,12 @@
 # TASK-H002: Transfers between accounts
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: M - 3-5 days
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-10-22
-**Completed**:
+**Completed**: 2026-10-27
 **Branch**: TASK-H002
 **Dependencies**: TASK-C001, TASK-H007
 
@@ -89,6 +89,8 @@ YNAB rules this task should follow:
 - `routers/transactions.py`: a `transfer_account_id` form field. `_validate()` checks ownership (404) and that the two accounts differ, and applies the category rules: none for budget-budget or tracking-tracking, required for budget/tracking, and always stored on the budget leg whichever side the form was filled from. `_save()` is shared by add and edit: it creates, updates or (when the transfer account is cleared) deletes the other leg in the same commit. Delete removes both legs. The inline category route uses `takes_category`.
 - Templates: "Transfer to/from" picker in the shared form fields. The list shows "Transfer to/from <account>" before the payee and "Transfer" instead of a category picker for budget-budget legs.
 - Tests: 5 budget tests (four combinations, plus a flagged uncategorised budget-to-tracking leg), 9 web tests, 1 migration test with data. 71 pass on SQLite and PostgreSQL 16.
+- Fix found while Carel tested on CT 161: after a refused save, the add form came back blank, so the Transfer to/from picker reset and a resubmitted transfer saved as a plain transaction. The add form now re-shows what was typed, as edit does (`b3b3264`, with a test).
+- Tried by Carel on CT 161 (2026-10-27): budget-to-budget transfer, editing one leg, the category rule on a transfer to the mortgage, and deleting one leg. Database and pages checked after each step.
 - Not enforced: the inline category picker on the budget leg of a budget/tracking transfer still offers "Uncategorised"; such a leg is then flagged like any uncategorised transaction.
 
 ---
@@ -137,4 +139,4 @@ Settled 2026-10-21: income is explicit via an "Inflow: Ready to Assign" category
 
 ---
 
-*Last Updated: 2026-10-22 by Claude*
+*Last Updated: 2026-10-27 by Claude*

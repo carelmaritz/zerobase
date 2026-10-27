@@ -132,7 +132,7 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 ## Roadmap
 
 - [x] Edit transactions
-- [ ] Transfers between accounts
+- [x] Transfers between accounts
 - [ ] Credit card accounts
 - [ ] CSV import
 - [ ] Rename, reorder and delete categories; close accounts
