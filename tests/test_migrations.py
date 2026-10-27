@@ -136,3 +136,39 @@ def test_0002_moves_existing_income_into_the_inflow_category(engine):
         rows = dict(connection.execute(text("SELECT id, category_id FROM transactions")).all())
         assert rows == {1: None, 2: None, 3: groceries, 4: None, 5: None}
         assert connection.execute(text("SELECT count(*) FROM categories")).scalar() == 1
+
+
+def test_0003_links_transfer_legs_and_downgrade_keeps_them(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0002")
+        connection.execute(
+            text(
+                "INSERT INTO users (id, email, password_hash, created_at) "
+                "VALUES (1, 'a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (id, user_id, name, kind, on_budget) VALUES "
+                "(1, 1, 'Current', 'checking', :t), (2, 1, 'Savings', 'savings', :t)"
+            ),
+            {"t": True},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO transactions (id, user_id, account_id, date, payee, memo, amount) "
+                "VALUES (1, 1, 1, '2026-10-01', '', '', -500), (2, 1, 2, '2026-10-01', '', '', 500)"
+            )
+        )
+
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE transactions SET transfer_id = 3 - id"))
+        rows = dict(connection.execute(text("SELECT id, transfer_id FROM transactions")).all())
+        assert rows == {1: 2, 2: 1}
+
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0002")
+        assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 2
+    columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "transfer_id" not in columns

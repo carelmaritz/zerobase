@@ -20,10 +20,11 @@ The arithmetic lives in [`src/zerobase/budget.py`](src/zerobase/budget.py) and i
 - Sign-up and sign-in (first account is always allowed; more only if you enable registration)
 - Budget and tracking accounts, with an optional opening balance
 - Monthly budget view with category groups, inline assignment, rollover and overspending
-- Transactions with payee, memo and category, plus changing a category after the fact
+- Transactions with payee, memo and category, plus editing them and changing a category after the fact
+- Transfers between accounts, kept as two linked sides that are edited and deleted together
 - Several users on one install, each with fully separate data
 
-Not there yet: editing a transaction, transfers between accounts, credit cards, CSV import, renaming or deleting categories, reports. See the roadmap.
+Not there yet: credit cards, CSV import, renaming or deleting categories, reports. See the roadmap.
 
 ## Quick start (Docker)
 
@@ -131,7 +132,7 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 ## Roadmap
 
 - [x] Edit transactions
-- [ ] Transfers between accounts
+- [x] Transfers between accounts
 - [ ] Credit card accounts
 - [ ] CSV import
 - [ ] Rename, reorder and delete categories; close accounts

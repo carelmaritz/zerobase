@@ -14,7 +14,9 @@
     {{ transaction_fields(accounts, categories, inflow, values) }}
     <button type="submit" class="primary">Add</button>
   </form>
-  <p class="muted">For income, choose Inflow: Ready to Assign.</p>
+  <p class="muted">For income, choose Inflow: Ready to Assign.
+    For a transfer, choose the other account; the outflow or inflow is from this account's side.
+    Between two budget accounts it needs no category; into or out of a tracking account it needs one.</p>
 </section>
 
 <p class="filters">
@@ -40,15 +42,18 @@
     <tr>
       <td>{{ t.date.isoformat() }}</td>
       <td>{{ t.account.name }}</td>
-      <td>{{ t.payee }}</td>
       <td>
-        {% if t.account.on_budget %}
+        {%- if t.transfer %}<span class="muted">Transfer {{ "to" if t.amount < 0 else "from" }} {{ t.transfer.account.name }}</span>{% if t.payee %} · {% endif %}{% endif -%}
+        {{ t.payee }}
+      </td>
+      <td>
+        {% if t.takes_category %}
         <form method="post" action="/transactions/{{ t.id }}/category"
               hx-post="/transactions/{{ t.id }}/category" hx-trigger="change" hx-swap="none">
           <select name="category_id" aria-label="Category for {{ t.payee or 'transaction' }}">{{ category_options(categories, inflow, t.category_id) }}</select>
           <noscript><button type="submit">Save</button></noscript>
         </form>
-        {% else %}<span class="muted">Tracking</span>{% endif %}
+        {% else %}<span class="muted">{{ "Transfer" if t.account.on_budget else "Tracking" }}</span>{% endif %}
       </td>
       <td>{{ t.memo }}</td>
       <td class="r">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>

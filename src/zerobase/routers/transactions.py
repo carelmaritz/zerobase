@@ -40,10 +40,15 @@ def _page(
     account_id: int | None = None,
     error: str | None = None,
     status: int = 200,
+    values: dict | None = None,
 ):
     query = (
         select(Transaction)
-        .options(joinedload(Transaction.account), joinedload(Transaction.category))
+        .options(
+            joinedload(Transaction.account),
+            joinedload(Transaction.category),
+            joinedload(Transaction.transfer).joinedload(Transaction.account),
+        )
         .where(Transaction.user_id == user.id)
         .order_by(Transaction.date.desc(), Transaction.id.desc())
         .limit(PAGE_SIZE)
@@ -56,7 +61,7 @@ def _page(
         "transactions": db.scalars(query).unique().all(),
         **_pickers(db, user),
         "account_id": account_id,
-        "values": {"account_id": account_id, "when": date.today().isoformat()},
+        "values": values or {"account_id": account_id, "when": date.today().isoformat()},
         "page_size": PAGE_SIZE,
         "error": error,
     }
@@ -84,11 +89,20 @@ class TransactionForm:
     category_id: str = ""
     outflow: str = ""
     inflow: str = ""
+    transfer_account_id: str = ""
 
     def values(self) -> dict:
         """The submitted values, for re-showing the form after an error."""
-        category = self.category_id.strip()
-        return {**vars(self), "category_id": int(category) if category.isdigit() else None}
+        return {
+            **vars(self),
+            "category_id": _optional_id(self.category_id),
+            "transfer_account_id": _optional_id(self.transfer_account_id),
+        }
+
+
+def _optional_id(value: str) -> int | None:
+    value = value.strip()
+    return int(value) if value.isdigit() else None
 
 
 def _form(
@@ -99,8 +113,11 @@ def _form(
     category_id: str = Form(""),
     outflow: str = Form(""),
     inflow: str = Form(""),
+    transfer_account_id: str = Form(""),
 ) -> TransactionForm:
-    return TransactionForm(account_id, when, payee, memo, category_id, outflow, inflow)
+    return TransactionForm(
+        account_id, when, payee, memo, category_id, outflow, inflow, transfer_account_id
+    )
 
 
 @dataclass
@@ -111,14 +128,26 @@ class ValidTransaction:
     payee: str
     memo: str
     amount: int
+    # For a transfer: the other account, and the category of the leg there.
+    transfer_account_id: int | None = None
+    transfer_category_id: int | None = None
 
 
 def _validate(db: Session, user: User, form: TransactionForm) -> ValidTransaction | str:
     """Check a submitted add or edit form. Returns the clean fields, or an error message.
 
-    A foreign account or category ID raises a 404, as everywhere else.
+    A foreign account or category ID raises a 404, as everywhere else. For a transfer, the
+    amount is from this account's side; the other leg gets the opposite.
     """
     account = owned_account(db, user, form.account_id)
+    transfer = None
+    if form.transfer_account_id.strip():
+        try:
+            transfer = owned_account(db, user, int(form.transfer_account_id))
+        except ValueError:
+            return "Choose a valid account to transfer to or from."
+        if transfer.id == account.id:
+            return "A transfer needs two different accounts."
     try:
         when_date = date.fromisoformat(form.when)
     except ValueError:
@@ -136,11 +165,28 @@ def _validate(db: Session, user: User, form: TransactionForm) -> ValidTransactio
         return "The amount cannot be zero."
 
     category_id = None
-    if form.category_id.strip() and account.on_budget:  # tracking accounts never touch envelopes
+    if form.category_id.strip():
         try:
             category_id = owned_category(db, user, int(form.category_id)).id
         except ValueError:
             return "Choose a valid category."
+
+    # Only a budget-account leg can have a category; for a transfer, only when the money
+    # leaves or enters the budget, and then it must have one.
+    transfer_category_id = None
+    if transfer is None:
+        if not account.on_budget:  # tracking accounts never touch envelopes
+            category_id = None
+    elif account.on_budget == transfer.on_budget:
+        if category_id is not None:
+            return (
+                "Leave the category blank: a transfer between two budget accounts, or two "
+                "tracking accounts, doesn't touch the envelopes."
+            )
+    elif category_id is None:
+        return "Choose a category: this transfer moves money into or out of the budget."
+    elif not account.on_budget:
+        category_id, transfer_category_id = None, category_id
 
     return ValidTransaction(
         account_id=account.id,
@@ -149,7 +195,36 @@ def _validate(db: Session, user: User, form: TransactionForm) -> ValidTransactio
         payee=form.payee.strip()[:100],
         memo=form.memo.strip()[:255],
         amount=amount,
+        transfer_account_id=transfer.id if transfer else None,
+        transfer_category_id=transfer_category_id,
     )
+
+
+def _save(db: Session, user: User, valid: ValidTransaction, transaction: Transaction) -> None:
+    """Apply checked fields to a new or existing transaction, keeping any other leg in step.
+
+    Adding a transfer account creates the other leg; removing it deletes that leg. The
+    caller commits, so both legs change together.
+    """
+    for field in ("account_id", "category_id", "date", "payee", "memo", "amount"):
+        setattr(transaction, field, getattr(valid, field))
+    other = db.get(Transaction, transaction.transfer_id) if transaction.transfer_id else None
+
+    if valid.transfer_account_id is None:
+        if other is not None:
+            transaction.transfer_id = None
+            db.delete(other)
+        return
+
+    if other is None:
+        other = Transaction(user_id=user.id)
+        db.add(other)
+    other.account_id = valid.transfer_account_id
+    other.category_id = valid.transfer_category_id
+    other.date, other.payee, other.memo = valid.date, valid.payee, valid.memo
+    other.amount = -valid.amount
+    db.flush()  # both legs need IDs before they can point at each other
+    transaction.transfer_id, other.transfer_id = other.id, transaction.id
 
 
 def _list_url(account_id: int | None) -> str:
@@ -165,8 +240,10 @@ def add_transaction(
 ):
     valid = _validate(db, user, form)
     if isinstance(valid, str):
-        return _page(request, db, user, error=valid, status=400)
-    db.add(Transaction(user_id=user.id, **vars(valid)))
+        return _page(request, db, user, error=valid, status=400, values=form.values())
+    transaction = Transaction(user_id=user.id)
+    db.add(transaction)
+    _save(db, user, valid, transaction)
     db.commit()
     return RedirectResponse("/transactions", status_code=303)
 
@@ -203,13 +280,16 @@ def edit_transaction_form(
     user: User = Depends(current_user),
 ):
     transaction = owned_transaction(db, user, transaction_id)
+    other = transaction.transfer
     amount = transaction.amount
     values = {
         "account_id": transaction.account_id,
+        "transfer_account_id": other.account_id if other else None,
         "when": transaction.date.isoformat(),
         "payee": transaction.payee,
         "memo": transaction.memo,
-        "category_id": transaction.category_id,
+        # On a transfer, the category may sit on the other (budget-account) leg.
+        "category_id": transaction.category_id or (other.category_id if other else None),
         "outflow": plain_money(-amount) if amount < 0 else "",
         "inflow": plain_money(amount) if amount > 0 else "",
     }
@@ -230,8 +310,7 @@ def edit_transaction(
     valid = _validate(db, user, form)
     if isinstance(valid, str):
         return _edit_page(request, db, user, transaction, form.values(), back_to, valid, 400)
-    for field, value in vars(valid).items():
-        setattr(transaction, field, value)
+    _save(db, user, valid, transaction)
     db.commit()
     return RedirectResponse(_list_url(back_to), status_code=303)
 
@@ -244,6 +323,8 @@ def delete_transaction(
 ):
     transaction = db.get(Transaction, transaction_id)
     if transaction is not None and transaction.user_id == user.id:
+        if transaction.transfer is not None:  # a transfer goes as a whole
+            db.delete(transaction.transfer)
         db.delete(transaction)
         db.commit()
     return RedirectResponse("/transactions", status_code=303)
@@ -267,7 +348,7 @@ def set_category(
             new_category_id = owned_category(db, user, int(category_id)).id
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid category") from None
-    if not transaction.account.on_budget:
+    if not transaction.takes_category:
         new_category_id = None
     transaction.category_id = new_category_id
     db.commit()

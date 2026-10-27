@@ -2,7 +2,13 @@ from datetime import date
 
 import pytest
 
-from zerobase.budget import add_months, build_budget, inflow_category, parse_month
+from zerobase.budget import (
+    account_balances,
+    add_months,
+    build_budget,
+    inflow_category,
+    parse_month,
+)
 from zerobase.models import (
     Account,
     Assignment,
@@ -184,3 +190,89 @@ def test_users_are_isolated(db, world):
     view = build_budget(db, other.id, OCT)
     assert view.ready_to_assign == 0
     assert view.groups == []
+
+
+def transfer(db, w, when, amount, source, target, *, category=None):
+    """Move ``amount`` from ``source`` to ``target``; ``category`` goes on the budget leg."""
+    legs = []
+    for account, signed in ((source, -amount), (target, amount)):
+        legs.append(
+            Transaction(
+                user_id=w["user"].id,
+                account_id=account.id,
+                category_id=category.id if category and account.on_budget else None,
+                date=when,
+                amount=signed,
+            )
+        )
+    db.add_all(legs)
+    db.flush()
+    legs[0].transfer_id, legs[1].transfer_id = legs[1].id, legs[0].id
+    db.commit()
+
+
+@pytest.fixture
+def savings(db, world):
+    account = Account(user_id=world["user"].id, name="Savings", on_budget=True)
+    db.add(account)
+    db.commit()
+    return account
+
+
+def test_budget_to_budget_transfer_changes_nothing_in_the_budget(db, world, savings):
+    income(db, world, date(2026, 10, 1), 100_000)
+    assign(db, world, OCT, 30_000)
+    transfer(db, world, date(2026, 10, 31), 50_000, world["account"], savings)
+    view = build_budget(db, world["user"].id, OCT)
+    assert (view.ready_to_assign, line(view).activity, line(view).available) == (70_000, 0, 30_000)
+    assert view.uncategorised_count == 0
+    balances = {a.name: b for a, b in account_balances(db, world["user"].id)}
+    assert (balances["Current"], balances["Savings"]) == (50_000, 50_000)
+
+
+def test_budget_to_tracking_transfer_is_spending(db, world):
+    assign(db, world, OCT, 30_000)
+    transfer(
+        db,
+        world,
+        date(2026, 10, 5),
+        20_000,
+        world["account"],
+        world["tracking"],
+        category=world["groceries"],
+    )
+    view = build_budget(db, world["user"].id, OCT)
+    assert (line(view).activity, line(view).available) == (-20_000, 10_000)
+    assert view.uncategorised_count == 0
+    balances = {a.name: b for a, b in account_balances(db, world["user"].id)}
+    assert (balances["Current"], balances["Mortgage"]) == (-20_000, 20_000)
+
+
+def test_tracking_to_budget_transfer_can_be_income(db, world):
+    transfer(
+        db,
+        world,
+        date(2026, 10, 5),
+        15_000,
+        world["tracking"],
+        world["account"],
+        category=world["inflow"],
+    )
+    view = build_budget(db, world["user"].id, OCT)
+    assert (view.ready_to_assign, view.income_this_month) == (15_000, 15_000)
+
+
+def test_tracking_to_tracking_transfer_stays_out_of_the_budget(db, world):
+    pension = Account(user_id=world["user"].id, name="Pension", on_budget=False)
+    db.add(pension)
+    db.commit()
+    transfer(db, world, date(2026, 10, 5), 9_000, world["tracking"], pension)
+    view = build_budget(db, world["user"].id, OCT)
+    assert (view.ready_to_assign, view.uncategorised_count, line(view).activity) == (0, 0, 0)
+
+
+def test_uncategorised_budget_leg_to_tracking_is_still_flagged(db, world):
+    # e.g. its category was deleted: the money did leave the budget, so it needs one.
+    transfer(db, world, date(2026, 10, 5), 20_000, world["account"], world["tracking"])
+    view = build_budget(db, world["user"].id, OCT)
+    assert (view.uncategorised_count, view.uncategorised_outflow) == (1, -20_000)
