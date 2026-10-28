@@ -8,8 +8,9 @@ network; for a normal install follow [DEPLOYMENT.md](../../DEPLOYMENT.md).
 | zerobase | 161 | prox01 | 192.168.1.50 (zerobase.port115.com) | Docker Compose stack in `/opt/zerobase` |
 
 Unprivileged Rocky 9 container (2 cores, 2 GB, 20 GB on `local-zfs`), following the
-Home_Web_Games LXC conventions. nftables inside the CT allows SSH and the app from
-192.168.1.0/24 only; SSH is key-only (the lnx02 deploy key). Plain HTTP on port 80.
+Home_Web_Games LXC conventions. nftables inside the CT allows SSH from 192.168.1.0/24
+only, and the app from 192.168.1.0/24 and 192.168.2.0/24 (WiFiman VPN clients). SSH is
+key-only (the lnx02 deploy key). Plain HTTP on port 80.
 
 ## Create or repair the container
 

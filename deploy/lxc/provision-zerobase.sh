@@ -14,6 +14,8 @@ BRIDGE="vmbr0"
 GW="192.168.1.1"
 DNS="192.168.1.1"
 LAN="192.168.1.0/24"
+# Who may reach the app: the LAN, plus Carel's WiFiman VPN clients. SSH stays LAN-only.
+APP_FROM="192.168.1.0/24, 192.168.2.0/24"
 REPO="https://github.com/carelmaritz/zerobase.git"
 BRANCH="${1:-main}"
 DEPLOY_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID5jlvbML2Yct/UffiO2FLIst1h0/j9hpNDmc15YLoWJ carel@port115.com"
@@ -53,11 +55,11 @@ in_ct "
     systemctl try-reload-or-restart sshd
 "
 
-echo "== Firewall (LAN only)"
+echo "== Firewall (LAN and VPN only)"
 in_ct "
     set -euo pipefail
     cat > /etc/nftables/zerobase.nft <<'EOF'
-# Zerobase test CT: SSH and the app from the LAN only.
+# Zerobase test CT: SSH from the LAN only; the app from the LAN and the WiFiman VPN.
 table inet zerobase {
     chain input {
         type filter hook input priority filter; policy drop;
@@ -69,7 +71,7 @@ table inet zerobase {
     # Docker publishes the app with DNAT, so it arrives via forward, not input.
     chain forward {
         type filter hook forward priority filter - 1; policy accept;
-        ct state new ct status dnat tcp dport 8000 ip saddr != $LAN drop
+        ct state new ct status dnat tcp dport 8000 ip saddr != { $APP_FROM } drop
     }
 }
 EOF
