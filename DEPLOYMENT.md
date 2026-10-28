@@ -2,7 +2,7 @@
 
 A runbook for putting Zerobase on a Proxmox VE cluster. It is written so a person or an automated agent can follow it top to bottom.
 
-> **Read this first.** The Docker image and Compose stack have been validated for syntax and the application itself has been tested against PostgreSQL, but the container build has **not** yet been run on a real Docker host. Treat the first deployment as the real test, and fix anything small you find (then send the fix back as a pull request).
+> **Read this first.** The Docker image and Compose stack have been built and run on a real host: a Rocky Linux 9 LXC on Proxmox, in October 2026. Migrations, restarts, a container reboot and the backup script were all checked there. The other operating systems in this runbook haven't been tried yet, so if something small fails, fix it and send the fix back as a pull request.
 
 ## 1. Decide these first
 
@@ -264,7 +264,7 @@ Rules:
 - Never print, log or commit secrets. Generate them on the guest, keep .env at mode 600,
   and do not paste its contents back to me.
 - Do not expose the app to the internet unless I chose a public hostname above.
-- The Docker build has not been tested before. If it fails, diagnose and fix the smallest
+- The Docker build has only been tried on Rocky Linux 9. If it fails, diagnose and fix the smallest
   thing that works, then tell me exactly what you changed so it can go back into the repo.
 
 Finish only when every check in section 6 passes. Then report: the URL, the guest ID
