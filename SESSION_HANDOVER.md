@@ -10,7 +10,8 @@ All verified on 2026-10-27 unless marked otherwise.
   - Done: H000, C001, H007, H001, **H002**.
   - **Next: H003** (categories).
 - **Database schema head: revision `0003`** (`0003_transfers.py`, which adds `transactions.transfer_id`).
-- **GitHub CI:** status never checked (**unverified**). `ruff check` and `ruff format --check` are clean.
+- **GitHub CI:** status never checked (**unverified**).
+- **Deploy docs (2026-10-28):** `DEPLOYMENT.md` no longer claims the build is untested, and the provisioning script and `deploy/lxc/README.md` include the VPN range. `ruff check` and `ruff format --check` are clean.
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
   - **Where:** CT 161 on prox01, 192.168.1.50. It runs **`main` (`78b477a`)**. App and database are healthy, and the database is at `0003`.
   - **Login:** `demo@zerobase.local`. Claude reset the password on 2026-10-27 at Carel's request and gave it to Carel in chat. It isn't stored in the repo or memory.
@@ -20,7 +21,7 @@ All verified on 2026-10-27 unless marked otherwise.
     - One live transfer: Current → Mortgage £1,000, IDs 44/45, category Rent / Mortgage.
     - Two old uncategorised transactions: Amazon −£23.99 and a £50 refund.
     - Don't wipe or reseed without asking.
-  - **Firewall:** `/etc/nftables/zerobase.nft` lets the **app** be reached from 192.168.1.0/24 **and 192.168.2.0/24** (Carel's WiFiman VPN). Carel made this change by hand on 2026-10-27 after the classifier blocked Claude. SSH is still 192.168.1.0/24 only. The previous rules file is `/etc/nftables/zerobase.nft.bak-20261027`.
+  - **Firewall:** `/etc/nftables/zerobase.nft` lets the **app** be reached from 192.168.1.0/24 **and 192.168.2.0/24** (Carel's WiFiman VPN). Carel made this change by hand on 2026-10-27 after the classifier blocked Claude. SSH is still 192.168.1.0/24 only. The previous rules file is `/etc/nftables/zerobase.nft.bak-20261027`. `deploy/lxc/provision-zerobase.sh` generates the same rules (checked with `nft -c` on 2026-10-28).
   - **Backups** in `/opt/zerobase/backups/`. The latest is `zerobase-20261027-221954.sql.gz`, taken before the data repair described below.
 
 ## Completed this session
@@ -42,13 +43,11 @@ All verified on 2026-10-27 unless marked otherwise.
 
 ## Next steps
 
-1. **Update `deploy/lxc/provision-zerobase.sh`** (`LAN=` at line 16, and the generated nft rule) and `deploy/lxc/README.md` line 12, so a rebuilt CT also lets 192.168.2.0/24 reach the app. Small commit. Note that Claude can't apply firewall changes to the live CT (see Landmines).
-2. **Remove the stale warnings in `DEPLOYMENT.md`** (line 5 and ~line 267, "container build has **not** yet been run on a real Docker host"). Small docs commit.
-3. **TASK-H003 (categories).** It must:
+1. **TASK-H003 (categories).** It must:
    - refuse to delete the inflow category
    - handle a deleted category nulling a budget↔tracking transfer leg, which is then flagged as uncategorised (that's acceptable)
    - settle the open decision on overspending (below)
-4. **After that:**
+2. **After that:**
    - H004, accounts. Account deletion must handle transfer legs (see Landmines).
    - H005, credit cards. Card payments reuse transfers.
    - H006, CSV import.
