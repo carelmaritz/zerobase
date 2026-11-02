@@ -1,11 +1,11 @@
 # TASK-H005: Credit card accounts
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-02
 **Completed**:
 **Branch**: TASK-H005
 **Dependencies**: TASK-C001, TASK-H002
@@ -165,7 +165,8 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Step 1 done (2026-11-02):** the budget maths is now a pure function. `build_budget` fills a `Ledger` (plain sums from the database), and `compute_budget(ledger, category_ids, month)` returns each category's `Figures` and Ready to Assign. Card funding lives in `_roll_month`. Examples 1–9 pass in `tests/test_card_maths.py`, and the existing budget tests are unchanged (118 pass).
+  - For step 4: `build_budget` must leave payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
 
 ---
 
