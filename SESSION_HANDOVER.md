@@ -40,7 +40,7 @@ All verified on 2026-11-02.
 ## Next steps
 
 1. **TASK-H004 (accounts). Planned and approved by Carel on 2026-11-02; not started, and there's no branch yet.**
-   - The plan and decisions are in `TASKS/TASK-H004.md` under "Agreed plan (2026-11-02)". Start with the `git checkout -b TASK-H004` step, then migration `0005`.
+   - The plan and decisions are in `TASKS/TASK-H004.md` under "Agreed plan (2026-11-02)". Create branch `TASK-H004` from `main`, then start with migration `0005` (step 1).
    - Both "ask first" items are settled:
      - The foreign key on `transactions.account_id` changes from `CASCADE` to `RESTRICT`.
      - Existing transactions in a closed account stay editable. New transactions or transfers into a closed account are refused.
