@@ -17,12 +17,13 @@
 {%- endmacro %}
 
 {# <option>s for a category <select>. `categories` is a list of (Category, CategoryGroup);
-   `inflow` is the user's built-in income category. #}
+   `inflow` is the user's built-in income category. Hidden categories are left out unless
+   already selected, so editing a transaction doesn't silently change its category. #}
 {% macro category_options(categories, inflow, selected_id=None) -%}
 <option value="">Uncategorised</option>
 <option value="{{ inflow.id }}"{% if inflow.id == selected_id %} selected{% endif %}>Inflow: Ready to Assign</option>
 {%- set ns = namespace(group=None) %}
-{%- for cat, grp in categories %}
+{%- for cat, grp in categories if not cat.hidden or cat.id == selected_id %}
   {%- if ns.group != grp.id %}
     {%- if ns.group is not none %}</optgroup>{% endif %}
     <optgroup label="{{ grp.name }}">

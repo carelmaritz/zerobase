@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ category.name }}{% endblock %}
+{% block content %}
+<h1>Delete {{ category.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<section class="card">
+  {% if not in_use and target is none %}
+  <p>{{ category.name }} has no transactions or assignments, so nothing else changes.</p>
+  <form method="post" action="/categories/{{ category.id }}/delete">
+    <button type="submit" class="primary">Delete {{ category.name }}</button>
+    <a href="/categories">Cancel</a>
+  </form>
+  {% else %}
+  <p>Move {{ category.name }}'s transactions and assigned money, in every month, to another category.
+    Assignments in the same month are added together.</p>
+  <form method="get" action="/categories/{{ category.id }}/delete" class="inline-form">
+    <select name="target_id" aria-label="Category to move everything to" required>
+      <option value="">Choose a category&hellip;</option>
+      {% for c in targets %}
+      <option value="{{ c.id }}"{% if target and c.id == target.id %} selected{% endif %}>{{ c.group.name }}: {{ c.name }}{% if c.hidden %} (hidden){% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">Preview</button>
+  </form>
+
+  {% if preview %}
+  <div class="notice preview">
+    <p>Everything in {{ category.name }} moves to <strong>{{ target.name }}</strong>.</p>
+    {% if preview.before == preview.after %}
+    <p>Ready to Assign for {{ preview.month }} stays at {{ preview.before|money }}.</p>
+    {% else %}
+    <p>Ready to Assign for {{ preview.month }} changes from {{ preview.before|money }} to <strong>{{ preview.after|money }}</strong>.
+      Past overspending in one of the two categories is covered by money in the other once they are merged,
+      so it no longer comes out of Ready to Assign.</p>
+    {% endif %}
+  </div>
+  <form method="post" action="/categories/{{ category.id }}/delete">
+    <input type="hidden" name="target_id" value="{{ target.id }}">
+    <button type="submit" class="primary">Delete {{ category.name }} and move everything to {{ target.name }}</button>
+    <a href="/categories">Cancel</a>
+  </form>
+  {% else %}
+  <p><a href="/categories">Cancel</a></p>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

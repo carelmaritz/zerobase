@@ -105,7 +105,7 @@ def assign(
     return _back(selected)
 
 
-def _clean_name(name: str) -> str | None:
+def clean_name(name: str) -> str | None:
     name = name.strip()
     return name if 0 < len(name) <= MAX_NAME_LENGTH else None
 
@@ -117,7 +117,7 @@ def add_group(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    cleaned = _clean_name(name)
+    cleaned = clean_name(name)
     if cleaned:
         next_order = db.scalar(
             select(func.coalesce(func.max(CategoryGroup.sort_order), -1) + 1).where(
@@ -140,7 +140,7 @@ def add_category(
     group = db.get(CategoryGroup, group_id)
     if group is None or group.user_id != user.id:
         return _back(_month_param(month))
-    cleaned = _clean_name(name)
+    cleaned = clean_name(name)
     if cleaned:
         next_order = db.scalar(
             select(func.coalesce(func.max(Category.sort_order), -1) + 1).where(

@@ -11,12 +11,14 @@ The model follows the zero-based / YNAB approach:
 * A positive balance rolls into the next month. A negative one (overspending) does not:
   it is cleared back to zero and instead reduces Ready to Assign from the next month on.
 * Ready to Assign = all income to date - all money assigned to date - past overspending.
+
+A **hidden** category still counts in all of this; it is just listed apart from its group.
 """
 
 from dataclasses import dataclass, field
 from datetime import date
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from .models import Account, Assignment, Category, CategoryGroup, Transaction
@@ -76,14 +78,27 @@ class BudgetView:
     uncategorised_count: int
     uncategorised_outflow: int  # negative
     uncategorised_inflow: int
+    hidden: list[CategoryLine] = field(default_factory=list)
 
 
 def _year_month(year: float, month: float) -> date:
     return date(int(year), int(month), 1)
 
 
-def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
+def build_budget(
+    db: Session, user_id: int, month: date, *, merge: tuple[int, int] | None = None
+) -> BudgetView:
+    """The budget for ``month``.
+
+    ``merge=(source_id, target_id)`` previews :func:`merge_category` without writing:
+    the source's assignments and activity are counted as the target's.
+    """
     month = month_start(month)
+    source_id, target_id = merge or (None, None)
+
+    def remap(category_id: int) -> int:
+        return target_id if category_id == source_id else category_id
+
     next_month = add_months(month, 1)
 
     groups = db.scalars(
@@ -97,7 +112,7 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         .order_by(Category.sort_order, Category.id)
     ).all()
     inflow_ids = {c.id for c in categories if c.is_inflow}
-    categories = [c for c in categories if not c.is_inflow]
+    categories = [c for c in categories if not c.is_inflow and c.id != source_id]
 
     assigned: dict[tuple[int, date], int] = {}
     for category_id, m, amount in db.execute(
@@ -105,7 +120,8 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
             Assignment.user_id == user_id, Assignment.month <= month
         )
     ):
-        assigned[(category_id, m)] = amount
+        key = (remap(category_id), m)
+        assigned[key] = assigned.get(key, 0) + amount
 
     year = func.extract("year", Transaction.date)
     mon = func.extract("month", Transaction.date)
@@ -130,7 +146,8 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         if category_id in inflow_ids:
             income[_year_month(y, m)] = int(total)
         else:
-            activity[(category_id, _year_month(y, m))] = int(total)
+            key = (remap(category_id), _year_month(y, m))
+            activity[key] = activity.get(key, 0) + int(total)
 
     # Uncategorised transactions would otherwise vanish from the maths, so surface them.
     # A transfer leg to another budget account needs no category, so it isn't flagged.
@@ -158,6 +175,7 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
     earliest = min([month, *seen_months])
 
     blocks = {g.id: GroupBlock(g) for g in groups}
+    hidden: list[CategoryLine] = []
     overspent_before = 0
     for category in categories:
         carry = 0
@@ -176,11 +194,10 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
             cursor = add_months(cursor, 1)
         this_assigned = assigned.get((category.id, month), 0)
         this_activity = activity.get((category.id, month), 0)
-        blocks[category.group_id].lines.append(
-            CategoryLine(
-                category, this_assigned, this_activity, carry + this_assigned + this_activity
-            )
+        line = CategoryLine(
+            category, this_assigned, this_activity, carry + this_assigned + this_activity
         )
+        (hidden if category.hidden else blocks[category.group_id].lines).append(line)
 
     total_income = sum(income.values())
     total_assigned = sum(assigned.values())
@@ -192,7 +209,52 @@ def build_budget(db: Session, user_id: int, month: date) -> BudgetView:
         uncategorised_count=int(uncat_count),
         uncategorised_outflow=int(uncat_outflow),
         uncategorised_inflow=int(uncat_inflow),
+        hidden=hidden,
     )
+
+
+def category_in_use(db: Session, category: Category) -> bool:
+    """Whether any transaction or assignment refers to the category."""
+    return any(
+        db.scalar(select(model.id).where(model.category_id == category.id).limit(1)) is not None
+        for model in (Transaction, Assignment)
+    )
+
+
+def merge_category(db: Session, source: Category, target: Category) -> None:
+    """Move the source's transactions and assignments to the target, then delete it.
+
+    Assignments in the same month are summed (one assignment per category and month).
+    Totals are unchanged, but past overspending can be: an overspent source merged into
+    a target with a surplus that month is no longer overspent, so Ready to Assign rises.
+    :func:`build_budget` with ``merge`` previews that. Flushes; the caller commits.
+    """
+    assert source.user_id == target.user_id and source.id != target.id
+    db.execute(
+        update(Transaction)
+        .where(Transaction.category_id == source.id)
+        .values(category_id=target.id)
+        .execution_options(synchronize_session="fetch")
+    )
+    existing = {
+        a.month: a
+        for a in db.scalars(select(Assignment).where(Assignment.category_id == target.id))
+    }
+    moving_assignments = db.scalars(
+        select(Assignment).where(Assignment.category_id == source.id)
+    ).all()
+    for moving in moving_assignments:
+        kept = existing.get(moving.month)
+        if kept is None:
+            moving.category_id = target.id
+            continue
+        kept.amount += moving.amount
+        db.delete(moving)
+        if kept.amount == 0:  # as the assign route does: no zero assignments
+            db.delete(kept)
+    db.flush()  # assignments off the source before it goes
+    db.delete(source)
+    db.flush()
 
 
 def account_balances(db: Session, user_id: int) -> list[tuple[Account, int]]:

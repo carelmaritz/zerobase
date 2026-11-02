@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,6 +69,8 @@ class Category(Base):
     # "standard" envelopes, or "inflow": the one per-user "Inflow: Ready to Assign" category.
     # Transactions in it are income; it is never shown in the budget or assigned to.
     kind: Mapped[str] = mapped_column(String(20), default="standard", server_default="standard")
+    # Hidden categories drop out of the budget's groups and the pickers but still count.
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     group: Mapped[CategoryGroup | None] = relationship()
 
@@ -84,9 +87,10 @@ class Transaction(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
     # The inflow category means income (Ready to Assign). NULL means not categorised yet:
-    # it counts nowhere in the budget and is flagged in the UI.
+    # it counts nowhere in the budget and is flagged in the UI. RESTRICT: deleting a
+    # category must move its transactions elsewhere first (``budget.merge_category``).
     category_id: Mapped[int | None] = mapped_column(
-        ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("categories.id", ondelete="RESTRICT"), nullable=True
     )
     date: Mapped[date] = mapped_column(Date)
     payee: Mapped[str] = mapped_column(String(100), default="")
