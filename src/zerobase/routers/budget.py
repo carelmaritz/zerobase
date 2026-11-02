@@ -138,7 +138,8 @@ def add_category(
     user: User = Depends(current_user),
 ):
     group = db.get(CategoryGroup, group_id)
-    if group is None or group.user_id != user.id:
+    # The card payments group only ever holds the cards' own payment categories.
+    if group is None or group.user_id != user.id or group.kind != "standard":
         return _back(_month_param(month))
     cleaned = clean_name(name)
     if cleaned:

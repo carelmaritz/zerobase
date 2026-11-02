@@ -176,6 +176,11 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
   - **Type lock:** a card can't change its type, and nothing can become a card (pulled forward from step 5).
   - **Tests:** `tests/test_cards.py` (8 tests).
   - **Performance:** `/budget` with 5,000 transactions over 3 years and two cards takes about 70 ms on local PostgreSQL. The script was a throwaway in the scratchpad.
+- **Step 5 done (2026-11-02):**
+  - **H003 routes:** `_editable_category` only accepts `kind == 'standard'`, and `_owned_group` only standard groups. Everything else gets a 404, and the card payments group is left off `/categories`. `/budget/categories` won't add to the system group, and the budget page shows no "add" row there.
+  - **Pickers:** payment categories are hidden unless already selected, as with hidden categories.
+  - **Validation:** `_validate()` refuses a payment category unless the edited transaction (or its other side) already uses it, with the message "To pay a credit card, record a transfer to it". The inline picker refuses it too.
+  - **Card changes:** renaming a card renames its payment category; closing or reopening it hides or shows it; deleting an empty card deletes the payment category first, but refuses if the category has assignments.
 
 ---
 

@@ -5,9 +5,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..budget import account_balances, add_payment_category, inflow_category
+from ..budget import account_balances, add_payment_category, category_in_use, inflow_category
 from ..deps import current_user, get_db, owned_account
-from ..models import CREDIT_CARD, Account, Transaction, User
+from ..models import CREDIT_CARD, Account, Category, Transaction, User
 from ..money import parse_money
 from ..templating import render
 
@@ -139,6 +139,10 @@ def _back() -> RedirectResponse:
     return RedirectResponse("/accounts", status_code=303)
 
 
+def _payment_category(db: Session, account: Account) -> Category | None:
+    return db.scalar(select(Category).where(Category.account_id == account.id))
+
+
 @router.get("/accounts/{account_id}/edit", response_class=HTMLResponse)
 def edit_account_form(
     request: Request,
@@ -168,6 +172,9 @@ def edit_account(
         error = "Choose a valid account type."
         return _edit_page(request, db, user, account, error, 400, name=name)
     account.name, account.kind = cleaned, kind
+    payment = _payment_category(db, account)
+    if payment is not None:  # a card's payment category is named after it
+        payment.name = cleaned[:60]
     db.commit()
     return _back()
 
@@ -185,6 +192,9 @@ def close_account(
     if closed and not account.closed and _balance(db, account):
         return _edit_page(request, db, user, account, status=400, close_refused=True)
     account.closed = closed
+    payment = _payment_category(db, account)
+    if payment is not None:  # hidden while the card is closed; it still counts
+        payment.hidden = closed
     db.commit()
     return _back()
 
@@ -201,6 +211,16 @@ def delete_account(
     if _has_transactions(db, account):
         error = f"{account.name} has transactions, so it can't be deleted. Close it instead."
         return _edit_page(request, db, user, account, error, 400)
+    payment = _payment_category(db, account)
+    if payment is not None:
+        if category_in_use(db, payment):
+            error = (
+                f"Money has been assigned to {account.name}'s payment category, so it can't "
+                "be deleted. Close it instead."
+            )
+            return _edit_page(request, db, user, account, error, 400)
+        db.delete(payment)
+        db.flush()  # the category refers to the account
     db.delete(account)
     db.commit()
     return _back()

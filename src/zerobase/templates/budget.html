@@ -51,6 +51,7 @@
       <td class="r">{{ num("avail-" ~ line.category.id, line.available, pill=True) }}</td>
     </tr>
     {% endfor %}
+    {% if block.group.kind == "standard" %}
     <tr class="add-row">
       <td colspan="4">
         <form class="inline-form" method="post" action="/budget/categories">
@@ -61,6 +62,7 @@
         </form>
       </td>
     </tr>
+    {% endif %}
   </tbody>
   {% endfor %}
 </table>

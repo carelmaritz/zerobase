@@ -2,7 +2,8 @@
 
 Deleting a category that has transactions or assignments merges it into another
 category (``budget.merge_category``); the confirm page previews the effect on Ready to
-Assign first. The built-in inflow category can't be changed here at all.
+Assign first. Only standard categories and groups are managed here: the built-in inflow
+category, card payment categories and the card payments group follow their card.
 """
 
 from datetime import date
@@ -30,14 +31,14 @@ def _back() -> RedirectResponse:
 
 def _editable_category(db: Session, user: User, category_id: int) -> Category:
     category = owned_category(db, user, category_id)
-    if category.is_inflow:
+    if category.kind != "standard":
         raise HTTPException(status_code=404, detail="Category not found")
     return category
 
 
 def _owned_group(db: Session, user: User, group_id: int) -> CategoryGroup:
     group = db.get(CategoryGroup, group_id)
-    if group is None or group.user_id != user.id:
+    if group is None or group.user_id != user.id or group.kind != "standard":
         raise HTTPException(status_code=404, detail="Group not found")
     return group
 
@@ -46,7 +47,7 @@ def _groups(db: Session, user: User) -> list[CategoryGroup]:
     return list(
         db.scalars(
             select(CategoryGroup)
-            .where(CategoryGroup.user_id == user.id)
+            .where(CategoryGroup.user_id == user.id, CategoryGroup.kind == "standard")
             .order_by(CategoryGroup.sort_order, CategoryGroup.id)
         )
     )

@@ -150,3 +150,116 @@ def test_a_card_cannot_change_type_and_nothing_can_become_one(client, db, setup)
     )
     page = client.get(f"/accounts/{current.id}/edit").text
     assert 'value="credit_card"' not in page
+
+
+def category_picker(page: str) -> str:
+    start = page.index('<select name="category_id"')
+    return page[start : page.index("</select>", start)]
+
+
+def test_payment_categories_cannot_be_chosen_for_transactions(client, db, setup):
+    payment = setup["payment"]
+    assert f'value="{payment.id}"' not in category_picker(client.get("/transactions").text)
+
+    response = client.post(
+        "/transactions",
+        data={
+            "account_id": setup["current"].id,
+            "when": TODAY,
+            "category_id": payment.id,
+            "outflow": "10",
+        },
+    )
+    assert response.status_code == 400 and "record a transfer to it" in response.text
+
+    spend(client, setup["current"], "5", setup["groceries"])
+    tesco = db.scalar(select(Transaction).where(Transaction.amount == -5_00))
+    response = client.post(f"/transactions/{tesco.id}/category", data={"category_id": payment.id})
+    assert response.status_code == 400
+
+
+def test_the_starting_debt_keeps_its_category_when_edited(client, db, setup):
+    debt = db.scalar(select(Transaction).where(Transaction.category_id == setup["payment"].id))
+    form = client.get(f"/transactions/{debt.id}/edit").text
+    assert f'<option value="{setup["payment"].id}" selected>Visa</option>' in form
+    response = client.post(
+        f"/transactions/{debt.id}/edit",
+        data={
+            "account_id": setup["visa"].id,
+            "when": TODAY,
+            "payee": "Opening debt",
+            "category_id": setup["payment"].id,
+            "outflow": "450",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    _, lines = view(db, setup)
+    assert lines[setup["payment"].id].needed == 450_00
+
+
+def test_category_management_leaves_payment_categories_alone(client, db, setup):
+    payment, group = setup["payment"], setup["payment"].group_id
+    for path, data in [
+        (f"/categories/{payment.id}/rename", {"name": "Mine"}),
+        (f"/categories/{payment.id}/hide", {"hidden": "true"}),
+        (f"/categories/{payment.id}/move", {"direction": "up"}),
+        (f"/categories/{payment.id}/delete", {}),
+        (f"/categories/{setup['groceries']}/delete", {"target_id": payment.id}),
+        (f"/categories/{setup['groceries']}/group", {"group_id": group}),
+        (f"/groups/{group}/rename", {"name": "Mine"}),
+        (f"/groups/{group}/move", {"direction": "down"}),
+        (f"/groups/{group}/delete", {}),
+    ]:
+        assert client.post(path, data=data).status_code == 404, path
+    assert "Credit Card Payments" not in client.get("/categories").text
+
+    client.post("/budget/categories", data={"group_id": group, "name": "Sneaky"})
+    assert db.scalar(select(Category).where(Category.name == "Sneaky")) is None
+    budget_page = client.get("/budget").text
+    assert "Add a category to Credit Card Payments" not in budget_page
+    assert "Add a category to Bills" in budget_page
+
+
+def test_renaming_a_card_renames_its_payment_category(client, db, setup):
+    visa = setup["visa"]
+    client.post(f"/accounts/{visa.id}/edit", data={"name": "Barclaycard", "kind": "credit_card"})
+    db.expire_all()
+    assert db.get(Category, setup["payment"].id).name == "Barclaycard"
+
+
+def test_closing_a_card_hides_its_payment_category(client, db, setup):
+    amex = add_account(client, db, "Amex", kind="credit_card")
+    payment = db.scalar(select(Category).where(Category.account_id == amex.id))
+    client.post(f"/accounts/{amex.id}/close", data={"closed": "true"})
+    db.expire_all()
+    assert db.get(Category, payment.id).hidden
+    budget, _ = view(db, setup)
+    assert payment.id in {ln.category.id for ln in budget.hidden}
+
+    client.post(f"/accounts/{amex.id}/close", data={"closed": "false"})
+    db.expire_all()
+    assert not db.get(Category, payment.id).hidden
+
+
+def test_deleting_an_empty_card_deletes_its_payment_category(client, db, setup):
+    amex = add_account(client, db, "Amex", kind="credit_card")
+    amex_id = amex.id
+    payment_id = db.scalar(select(Category.id).where(Category.account_id == amex_id))
+    response = client.post(f"/accounts/{amex_id}/delete", follow_redirects=False)
+    assert response.status_code == 303
+    db.expire_all()
+    assert db.get(Account, amex_id) is None and db.get(Category, payment_id) is None
+
+
+def test_a_card_with_money_assigned_to_its_payment_category_is_kept(client, db, setup):
+    amex = add_account(client, db, "Amex", kind="credit_card")
+    payment_id = db.scalar(select(Category.id).where(Category.account_id == amex.id))
+    client.post(
+        "/budget/assign",
+        data={"category_id": payment_id, "month": f"{MONTH:%Y-%m}", "amount": "25"},
+    )
+    response = client.post(f"/accounts/{amex.id}/delete")
+    assert response.status_code == 400 and "Close it instead" in response.text
+    db.expire_all()
+    assert db.get(Category, payment_id) is not None
