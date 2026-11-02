@@ -56,6 +56,22 @@ Note: `transactions.account_id` is `ON DELETE CASCADE`, so deleting an account t
 
 ---
 
+## Agreed plan (2026-11-02)
+
+Decisions from Carel:
+- `transactions.account_id` changes from `ON DELETE CASCADE` to `RESTRICT` (same approach as H003's category FK).
+- Existing transactions in a closed account **stay editable**, even if an edit makes the balance non-zero again (the Closed accounts list then shows it). **New** transactions, or transfers, into a closed account are refused by the server.
+
+Steps, each with its completion test:
+1. **Migration `0005`**: `accounts.closed` (default false), and the RESTRICT FK change. Done when: up/down works, the drift test passes on SQLite and PostgreSQL, and a test (with `PRAGMA foreign_keys` on for SQLite, as in `tests/test_categories.py`) shows the database refuses to delete an account with transactions.
+2. **Edit**: `/accounts/{id}/edit` with name (1–80 characters) and kind. Budget/tracking is shown but can't be changed. Done when: changes persist, bad input is refused, and another user's account gets a 404.
+3. **Close and reopen**: only at a zero balance. Otherwise refuse, giving the balance and suggesting a transaction or transfer to clear it. Closed accounts appear under "Closed accounts" on the Accounts page, and their history stays viewable through `/transactions?account_id=`. Done when: a non-zero balance is refused, and the budget figures are identical before and after closing.
+4. **Delete**: only with no transactions; otherwise refuse and offer close. Done when: both cases are tested.
+5. **Pickers and validation**: closed accounts are left out of the account and transfer pickers, except the one an edited transaction already uses (the same pattern as hidden categories in `_macros.html`). `_validate()` in `routers/transactions.py` refuses a closed account on either leg unless the transaction already used it.
+6. **Tests and bookkeeping**: ownership checks on every route; the task file, `TASKS.md` and README. Then deploy to CT 161 (backup first) for Carel to test.
+
+Checked before planning: with RESTRICT on these FKs, PostgreSQL 16 still deletes a whole user cascade cleanly.
+
 ## Implementation Plan
 
 ### Phase 1
@@ -100,4 +116,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-02 by Claude*

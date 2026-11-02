@@ -39,9 +39,13 @@ All verified on 2026-11-02.
 
 ## Next steps
 
-1. **TASK-H004 (accounts).**
-   - Account deletion must handle transfer legs. The other leg of a transfer must be deleted or unlinked by the app (see Landmines).
-   - `transactions.account_id` is still `ON DELETE CASCADE`. Consider whether H004 wants the same RESTRICT treatment; ask Carel first, as with H003.
+1. **TASK-H004 (accounts). Planned and approved by Carel on 2026-11-02; not started, and there's no branch yet.**
+   - The plan and decisions are in `TASKS/TASK-H004.md` under "Agreed plan (2026-11-02)". Start with the `git checkout -b TASK-H004` step, then migration `0005`.
+   - Both "ask first" items are settled:
+     - The foreign key on `transactions.account_id` changes from `CASCADE` to `RESTRICT`.
+     - Existing transactions in a closed account stay editable. New transactions or transfers into a closed account are refused.
+   - An account can be deleted only when it has no transactions. That means the transfer-leg problem can't come up: an account with transfers has transactions.
+   - Done when the success criteria in the task file pass on SQLite and PostgreSQL, the change is deployed to CT 161 (back up first: `0005` is a migration), and Carel has tested it with the database checked after each step.
 2. **After that:**
    - H005, credit cards. Card payments reuse transfers. It needs system categories that can't be deleted; the H003 routes only manage `kind == 'standard'`.
    - H006, CSV import.
@@ -58,6 +62,7 @@ All verified on 2026-11-02.
 - **Claude deleting merged branches:** blocked by the classifier ("Git Destructive") when bundled into a wrap-up. It worked when Carel asked for it directly and the merge was checked first.
 - **Creating PRs from here:** `gh` isn't installed and there's no token. Merge locally with `git merge --no-ff` and push after asking, or Carel merges on GitHub.
 - **Migration tests with explicit primary keys on PostgreSQL:** fixed IDs don't advance the sequence, so a later insert collides. Let the database assign IDs when anything inserts afterwards.
+- **Worry that RESTRICT breaks deleting a user (checked 2026-11-02, it doesn't):** on PostgreSQL 16, deleting a user still cascades through categories, accounts and transactions with RESTRICT foreign keys between them, and RESTRICT still blocks deleting a category directly. No need for NO ACTION instead, and no route deletes users anyway.
 - **Pushing to `main` without fetching:** rejected once. Always `git pull --ff-only` first.
 - **Tests:** reading `.id` on an ORM object whose row a request deleted raises `ObjectDeletedError` after `expire_all()`. Capture IDs before the request.
 
@@ -67,7 +72,7 @@ All verified on 2026-11-02.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
 - **Transfers:**
   - Both legs point at each other through `transfer_id`. `Transaction.transfer` is **viewonly**, so set the IDs directly (`_save()` flushes, then links them).
-  - **SQLite doesn't enforce FKs here**, so the app deletes the other leg. Any new delete path (H004 accounts, H006 import) must delete or unlink the other leg itself.
+  - **SQLite doesn't enforce FKs here**, so the app deletes the other leg. Any new delete path (e.g. H006 import) must delete or unlink the other leg itself. H004 sidesteps this: it only deletes accounts with no transactions.
   - The category lives on the budget leg only.
   - `takes_category` needs `transfer.account` loaded.
 - **Categories (H003):**
