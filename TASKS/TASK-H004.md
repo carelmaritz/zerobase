@@ -1,12 +1,12 @@
 # TASK-H004: Manage accounts
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: S - 1-2 days
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-02
-**Completed**:
+**Completed**: 2026-11-02
 **Branch**: TASK-H004
 **Dependencies**: TASK-C001
 
@@ -88,7 +88,7 @@ Checked before planning: with RESTRICT on these FKs, PostgreSQL 16 still deletes
 
 ## Work Completed
 
-Code complete on branch `TASK-H004` (2026-11-02). 106 tests pass on SQLite and PostgreSQL 16; ruff clean. **Not yet tested by Carel on CT 161.**
+Done 2026-11-02, merged to `main`. 106 tests pass on SQLite and PostgreSQL 16; ruff clean.
 
 - **Migration `0005`** (`0005_manage_accounts.py`): `accounts.closed` (default false); `transactions.account_id` FK `CASCADE` → `RESTRICT`. Downgrade restores CASCADE and drops the flag.
 - **`/accounts/{id}/edit`** (GET page, POST save): name (1–80 characters) and kind. Budget/tracking is shown but fixed. The Accounts page has a "Manage" link per account.
@@ -113,7 +113,7 @@ None yet.
 - [x] Closed account's past transactions still count in budget figures
 - [x] Delete with transactions refused; delete empty account works
 - [x] Other user's account: 404
-- [ ] Carel tests on CT 161, with the database checked after each step
+- [x] Carel tested on CT 161 (2026-11-02), with the database checked afterwards: changing Savings' type; closing Current refused (non-zero); adding and deleting an empty account; a £1,800 transfer Savings → Current (linked legs 46/47, no category), then closing Savings at £0; editing Savings' starting-balance transaction while closed. Ready to Assign stayed £815.00. Not tried there (covered by automated tests): a new transaction into a closed account being refused, and reopening.
 
 ---
 
