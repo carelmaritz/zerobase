@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import num, rta %}
+{% from "_macros.html" import available, line_note, num, rta %}
 {% block title %}Budget{% endblock %}
 {% block content %}
 <div class="month-nav">
@@ -37,7 +37,7 @@
     </tr>
     {% for line in block.lines %}
     <tr>
-      <th scope="row">{{ line.category.name }}</th>
+      <th scope="row">{{ line.category.name }}{{ line_note(line) }}</th>
       <td class="r">
         <form class="assign" method="post" action="/budget/assign"
               hx-post="/budget/assign" hx-trigger="change, submit" hx-swap="none">
@@ -48,7 +48,7 @@
         </form>
       </td>
       <td class="r">{{ num("act-" ~ line.category.id, line.activity) }}</td>
-      <td class="r">{{ num("avail-" ~ line.category.id, line.available, pill=True) }}</td>
+      <td class="r">{{ available(line) }}</td>
     </tr>
     {% endfor %}
     {% if block.group.kind == "standard" %}
@@ -80,7 +80,7 @@
         <th scope="row">{{ line.category.name }}</th>
         <td class="r">{{ line.assigned|money }}</td>
         <td class="r">{{ line.activity|money }}</td>
-        <td class="r">{{ num("hidden-avail-" ~ line.category.id, line.available, pill=True) }}</td>
+        <td class="r">{{ available(line, "hidden-avail-") }}</td>
       </tr>
       {% endfor %}
     </tbody>

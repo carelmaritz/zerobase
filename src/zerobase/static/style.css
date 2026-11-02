@@ -10,6 +10,8 @@
   --pos-bg: #dcfce7;
   --neg-fg: #b42318;
   --neg-bg: #fee4e2;
+  --credit-fg: #854d0e;
+  --credit-bg: #fef3c7;
   --zero-fg: #667085;
   --zero-bg: #eef0f3;
   --focus: #2563eb;
@@ -29,6 +31,8 @@
     --pos-bg: #12351f;
     --neg-fg: #fda29b;
     --neg-bg: #3b1613;
+    --credit-fg: #fde68a;
+    --credit-bg: #3a2a07;
     --zero-fg: #98a2b3;
     --zero-bg: #232830;
     --focus: #60a5fa;
@@ -140,6 +144,10 @@ tbody th[scope="row"] { font-weight: 400; }
 .num.pill.neg { background: var(--neg-bg); color: var(--neg-fg); }
 .num.pill.zero { background: var(--zero-bg); color: var(--zero-fg); }
 .num.neg { color: var(--neg-fg); }
+.num.pill.credit { background: var(--credit-bg); color: var(--credit-fg); }
+.num.credit { color: var(--credit-fg); }
+.line-note { display: block; color: var(--muted); font-weight: normal; font-size: .8rem; }
+.line-note:empty { display: none; }
 
 form.assign { margin: 0; }
 .row-actions { display: flex; gap: .75rem; align-items: center; white-space: nowrap; }

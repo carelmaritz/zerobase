@@ -1,10 +1,11 @@
 {# Response to an inline assignment edit: swaps in every figure that may have changed. #}
-{% from "_macros.html" import num, rta %}
+{% from "_macros.html" import available, line_note, num, rta %}
 {{ rta(view, oob=True) }}
 {% for block in view.groups %}
   {% for line in block.lines %}
     {{ num("act-" ~ line.category.id, line.activity, oob=True) }}
-    {{ num("avail-" ~ line.category.id, line.available, oob=True, pill=True) }}
+    {{ available(line, oob=True) }}
+    {{ line_note(line, oob=True) }}
   {% endfor %}
   {{ num("g" ~ block.group.id ~ "-assigned", block.assigned, oob=True) }}
   {{ num("g" ~ block.group.id ~ "-activity", block.activity, oob=True) }}

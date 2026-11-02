@@ -40,12 +40,12 @@ YNAB's model:
 - UI: payment categories shown in their own group; credit overspending visually distinct from cash overspending.
 
 ### Success Criteria
-- [ ] Spending £30 from a category with ≥£30 available moves £30 to the card's payment category
-- [ ] Spending more than available: funded part moves, unfunded part shown as credit overspending, Ready to Assign next month unaffected by it
-- [ ] Paying the card from a checking account reduces payment category Available and card debt
-- [ ] Refund on the card reverses the movement
-- [ ] Starting a card with existing debt shows the payment category needing that amount
-- [ ] Unit tests in `test_budget.py` covering each rule across month boundaries
+- [x] Spending £30 from a category with ≥£30 available moves £30 to the card's payment category
+- [x] Spending more than available: funded part moves, unfunded part shown as credit overspending, Ready to Assign next month unaffected by it
+- [x] Paying the card from a checking account reduces payment category Available and card debt
+- [x] Refund on the card reverses the movement
+- [x] Starting a card with existing debt shows the payment category needing that amount
+- [x] Unit tests covering each rule across month boundaries (`tests/test_card_maths.py`, plus `tests/test_cards.py`)
 
 ### Out of Scope
 
@@ -181,6 +181,15 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
   - **Pickers:** payment categories are hidden unless already selected, as with hidden categories.
   - **Validation:** `_validate()` refuses a payment category unless the edited transaction (or its other side) already uses it, with the message "To pay a credit card, record a transfer to it". The inline picker refuses it too.
   - **Card changes:** renaming a card renames its payment category; closing or reopening it hides or shows it; deleting an empty card deletes the payment category first, but refuses if the category has assignments.
+- **Step 6 done (2026-11-02):**
+  - **Budget page:** the "Credit Card Payments" group is listed first.
+  - **Credit overspending colour:** an Available that is overspent only on credit gets a `credit` (amber) pill; any cash overspending keeps it red, as in YNAB.
+  - **Notes in words:** each line can show "£X more needed to pay off this card" or "£X of card spending not covered", so the meaning doesn't rely on colour. The notes are also in the HTMX update after assigning.
+  - **Code:** `available()` and `line_note()` macros in `_macros.html`; `--credit-*` colour tokens with dark-mode values.
+- **Step 7 (in progress):** README updated; the test totals are in the "Current state" of the handover.
+- **Known edges, left alone:**
+  - If the starting-debt transaction is edited to a positive amount, it stays in the payment category: the card shows as in credit, but the money doesn't reach Ready to Assign.
+  - A transfer from a card to a budget account (a cash advance) counts as reversing a payment.
 
 ---
 
@@ -196,11 +205,11 @@ None yet.
 Mostly pure unit tests on the maths with hand-checked expected values, plus web tests for the flows.
 
 ### Test Cases
-- [ ] Fully funded spending, partially funded, unfunded
-- [ ] Refund in a later month
-- [ ] Payment greater than the payment category Available
-- [ ] Two cards, same category
-- [ ] Card spending in a month, category topped up next month (does not retroactively fund)
+- [x] Fully funded spending, partially funded, unfunded
+- [x] Refund in a later month
+- [x] Payment greater than the payment category Available
+- [x] Two cards, same category
+- [x] Card spending in a month, category topped up next month (does not retroactively fund)
 
 ---
 
@@ -212,8 +221,8 @@ Mostly pure unit tests on the maths with hand-checked expected values, plus web 
 
 ## Known Issues & Gotchas
 
-- [ ] Funding is decided per transaction in date order within a month, against the category's available at that point; YNAB's exact ordering rules matter for edge cases. Document the rule chosen.
-- [ ] Interacts with category deletion (TASK-H003): payment categories must be protected.
+- [x] (Decided: month totals, cash first, then cards in account order.) Funding is decided per transaction in date order within a month, against the category's available at that point; YNAB's exact ordering rules matter for edge cases. Document the rule chosen.
+- [x] Interacts with category deletion (TASK-H003): payment categories must be protected.
 
 ---
 

@@ -263,3 +263,33 @@ def test_a_card_with_money_assigned_to_its_payment_category_is_kept(client, db, 
     assert response.status_code == 400 and "Close it instead" in response.text
     db.expire_all()
     assert db.get(Category, payment_id) is not None
+
+
+def test_budget_page_shows_card_payments_and_credit_overspending(client, db, setup):
+    spend(client, setup["visa"], "120", setup["groceries"])
+    page = client.get("/budget").text
+    assert page.index("Credit Card Payments") < page.index("Bills")
+    groceries, payment = setup["groceries"], setup["payment"].id
+    assert f'id="avail-{groceries}" class="num pill credit"' in page
+    assert "£20.00 of card spending not covered" in page
+    assert "£520.00 more needed to pay off this card" in page
+    assert f'id="avail-{payment}" class="num pill pos"' in page
+
+
+def test_cash_overspending_stays_red_when_mixed_with_credit(client, db, setup):
+    spend(client, setup["current"], "110", setup["groceries"])
+    spend(client, setup["visa"], "10", setup["groceries"])
+    page = client.get("/budget").text
+    assert f'id="avail-{setup["groceries"]}" class="num pill neg"' in page
+
+
+def test_assigning_to_a_payment_category_updates_what_is_needed(client, db, setup):
+    payment = setup["payment"].id
+    response = client.post(
+        "/budget/assign",
+        data={"category_id": payment, "month": f"{MONTH:%Y-%m}", "amount": "200"},
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+    assert f'id="note-{payment}"' in response.text
+    assert "£300.00 more needed to pay off this card" in response.text

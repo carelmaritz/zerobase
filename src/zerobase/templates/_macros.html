@@ -1,8 +1,24 @@
 {% macro tone(v) %}{% if v < 0 %}neg{% elif v == 0 %}zero{% else %}pos{% endif %}{% endmacro %}
 
-{# A money figure in a span. With oob=True it replaces the span with the same id in the page. #}
-{% macro num(id, value, oob=False, pill=False) -%}
-<span id="{{ id }}" class="num {{ 'pill ' if pill }}{{ tone(value) }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ value|money }}</span>
+{# A money figure in a span. With oob=True it replaces the span with the same id in the page.
+   credit=True shows a negative figure as credit overspending rather than cash. #}
+{% macro num(id, value, oob=False, pill=False, credit=False) -%}
+<span id="{{ id }}" class="num {{ 'pill ' if pill }}{{ 'credit' if credit and value < 0 else tone(value) }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ value|money }}</span>
+{%- endmacro %}
+
+{# A category's Available. Overspending that is all on credit cards gets its own colour;
+   any cash overspending shows as ordinary (red) overspending, as in YNAB. #}
+{% macro available(line, id_prefix="avail-", oob=False) -%}
+{{ num(id_prefix ~ line.category.id, line.available, oob=oob, pill=True, credit=(line.cash_overspent == 0)) }}
+{%- endmacro %}
+
+{# A short note under a category's name: what a payment category still needs, or how much
+   card spending its category couldn't cover. In words, so it doesn't rely on colour. #}
+{% macro line_note(line, oob=False) -%}
+<small id="note-{{ line.category.id }}" class="line-note"{% if oob %} hx-swap-oob="true"{% endif %}>
+{%- if line.category.is_card_payment and line.needed %}{{ line.needed|money }} more needed to pay off this card
+{%- elif line.credit_overspent %}{{ line.credit_overspent|money }} of card spending not covered: it adds to the card's debt
+{%- endif %}</small>
 {%- endmacro %}
 
 {% macro rta(view, oob=False) -%}
