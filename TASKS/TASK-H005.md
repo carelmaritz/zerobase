@@ -167,6 +167,7 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
 
 - **Step 1 done (2026-11-02):** the budget maths is now a pure function. `build_budget` fills a `Ledger` (plain sums from the database), and `compute_budget(ledger, category_ids, month)` returns each category's `Figures` and Ready to Assign. Card funding lives in `_roll_month`. Examples 1–9 pass in `tests/test_card_maths.py`, and the existing budget tests are unchanged (118 pass).
   - For step 4: `build_budget` must leave payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
+- **Step 2 done (2026-11-02):** migration `0006` (`0006_credit_cards.py`) adds `categories.account_id` (unique, FK → accounts, RESTRICT) and `category_groups.kind` (`standard` | `card_payments`). Up/down and the drift test pass on SQLite and PostgreSQL 16. On PostgreSQL, deleting a user still cascades through a card, its payment category and their transactions. With foreign keys switched on, SQLite refuses that delete, but that was already true before this change (the H003/H004 RESTRICT keys cause it). The app never switches them on in SQLite, so the test checks the delete on PostgreSQL only.
 
 ---
 

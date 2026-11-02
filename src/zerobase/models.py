@@ -56,6 +56,9 @@ class CategoryGroup(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(60))
     sort_order: Mapped[int] = mapped_column(default=0)
+    # "standard", or "card_payments": the one per-user system group for card payment
+    # categories, which the category management routes leave alone.
+    kind: Mapped[str] = mapped_column(String(20), default="standard", server_default="standard")
 
 
 class Category(Base):
@@ -69,9 +72,14 @@ class Category(Base):
     )
     name: Mapped[str] = mapped_column(String(60))
     sort_order: Mapped[int] = mapped_column(default=0)
-    # "standard" envelopes, or "inflow": the one per-user "Inflow: Ready to Assign" category.
-    # Transactions in it are income; it is never shown in the budget or assigned to.
+    # "standard" envelopes; "inflow": the one per-user "Inflow: Ready to Assign" category
+    # (transactions in it are income; it is never shown in the budget or assigned to); or
+    # "card_payment": a credit card's payment category, linked by ``account_id``.
     kind: Mapped[str] = mapped_column(String(20), default="standard", server_default="standard")
+    # The card whose payment category this is. RESTRICT: the app deletes it with the card.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True, unique=True
+    )
     # Hidden categories drop out of the budget's groups and the pickers but still count.
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
