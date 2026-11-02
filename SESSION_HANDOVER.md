@@ -1,55 +1,49 @@
-# Session Handover — 2026-10-27 — TASK-H002 (transfers) done and merged; CT 161 back on main
+# Session Handover — 2026-11-02 — TASK-H003 (categories) done and merged; CT 161 on main
 
 ## Current state
 
-All verified on 2026-10-27 unless marked otherwise.
+All verified on 2026-11-02.
 
-- **`main` at `78b477a`** ("Merge TASK-H002"), pushed, plus this handover commit. 72 tests pass on the merged code (SQLite). PostgreSQL 16 was run on `b3b3264`, the same code before the merge.
-- **`main` is the only branch**, locally and on GitHub. `TASK-H002` was deleted on 2026-10-28 at Carel's request, after checking it was fully merged.
+- **`main` at `19ed610`** ("Merge TASK-H003"), pushed. 92 tests pass on SQLite and PostgreSQL 16.
+- **Branches:** `main`, plus `TASK-H003` (fully merged and pushed; delete only if Carel asks).
 - **Task status:**
-  - Done: H000, C001, H007, H001, **H002**.
-  - **Next: H003** (categories).
-- **Database schema head: revision `0003`** (`0003_transfers.py`, which adds `transactions.transfer_id`).
+  - Done: H000, C001, H007, H001, H002, **H003**.
+  - **Next: H004** (accounts).
+- **Database schema head: revision `0004`** (`0004_manage_categories.py`): adds `categories.hidden` and changes `transactions.category_id` to `ON DELETE RESTRICT`.
 - **GitHub CI:** status never checked (**unverified**).
-- **Deploy docs (2026-10-28):** `DEPLOYMENT.md` no longer claims the build is untested, and the provisioning script and `deploy/lxc/README.md` include the VPN range. `ruff check` and `ruff format --check` are clean.
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - **Where:** CT 161 on prox01, 192.168.1.50. It runs **`main` (`78b477a`)**. App and database are healthy, and the database is at `0003`.
-  - **Login:** `demo@zerobase.local`. Claude reset the password on 2026-10-27 at Carel's request and gave it to Carel in chat. It isn't stored in the repo or memory.
-  - **Data:**
-    - October Ready to Assign: **£1,315.00**.
-    - Balances: Current account £3,579.01, Savings £1,800.00, Mortgage (tracking) −£181,450.00.
-    - One live transfer: Current → Mortgage £1,000, IDs 44/45, category Rent / Mortgage.
-    - Two old uncategorised transactions: Amazon −£23.99 and a £50 refund.
-    - Don't wipe or reseed without asking.
-  - **Firewall:** `/etc/nftables/zerobase.nft` lets the **app** be reached from 192.168.1.0/24 **and 192.168.2.0/24** (Carel's WiFiman VPN). Carel made this change by hand on 2026-10-27 after the classifier blocked Claude. SSH is still 192.168.1.0/24 only. The previous rules file is `/etc/nftables/zerobase.nft.bak-20261027`. `deploy/lxc/provision-zerobase.sh` generates the same rules (checked with `nft -c` on 2026-10-28).
-  - **Backups** in `/opt/zerobase/backups/`. The latest is `zerobase-20261027-221954.sql.gz`, taken before the data repair described below.
+  - Runs **`main` (`19ed610`)**. App and database are healthy, and the database is at `0004`. The app container wasn't recreated by the final deploy because the image didn't change; it runs the same code from the H003 deploy.
+  - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
+  - **Data after Carel's H003 testing** (all deliberate):
+    - Rent / Mortgage was merged into Holidays, and Insurance renamed "Rainy Day".
+    - Groceries is hidden. The Needs group was deleted, and its categories moved to Bills.
+    - November Ready to Assign **£815.00**, total Available £4,538.00. October Ready to Assign £1,315.00.
+    - Balances unchanged: Current £3,579.01, Savings £1,800.00, Mortgage −£181,450.00.
+    - Transfer 44/45 (Current → Mortgage £1,000) is now in Holidays.
+    - Two uncategorised transactions: Amazon −£23.99 and a £50 refund.
+    - Don't wipe, reseed or restore without asking.
+  - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
+  - **Backups** in `/opt/zerobase/backups/`. The latest is `zerobase-20261102-092603.sql.gz`, taken before the H003 deploy and before Carel's testing (it still has Rent / Mortgage).
 
 ## Completed this session
 
-1. **TASK-H002 (transfers), DONE**, merged as `78b477a`. Full description in the task file's "Work Completed" section. In short:
-   - A self-FK `transfer_id` links the two legs.
-   - `_save()` in `routers/transactions.py` keeps both legs in step on add and edit.
-   - Delete removes both legs.
-   - Category rules: none for budget↔budget or tracking↔tracking. Required for budget↔tracking, and stored on the budget leg.
-   - Budget↔budget legs are left out of the uncategorised count.
-2. **Bug found during Carel's testing, and fixed** (`b3b3264`, with a regression test):
-   - The add form came back blank after a refused save. The "Transfer to/from" picker silently reset, so a resubmitted transfer saved as a plain transaction.
-   - The add form now re-shows what was typed.
-3. **Data repair on CT 161**, approved by Carel:
-   - During testing Carel accidentally deleted transaction 1, the Mortgage "Starting balance" of −£182,450.00 dated 2026-10-21. It was re-inserted with the same ID and values from `zerobase-20261022-115653.sql.gz`.
-   - Transaction 44 (the −£1,000 that had saved as a plain transaction) was turned into a real transfer through the edit route.
-4. **Carel tried every H002 flow on CT 161**: budget↔budget transfer, editing one leg, the category rule, and deleting one leg. The database and pages were checked after each step.
-5. **README:** the feature list and the roadmap tick now include transfers and editing.
+1. **TASK-H003 (categories and groups), DONE**, merged as `19ed610`. Full description in the task file's "Work Completed" section. In short:
+   - A `/categories` page to rename, reorder, move between groups, hide or unhide, and delete.
+   - Delete merges the category into another one (`budget.merge_category`), adding assignments in the same month together.
+   - The confirm page previews Ready to Assign for the current month (`build_budget(..., merge=...)`, worked out in memory).
+   - Hidden categories still count. They're listed under "Hidden categories" on the budget page and left out of the pickers unless already selected.
+   - The inflow category gets a 404 on all of these routes.
+2. **Carel's decisions (2026-11-02):** the RESTRICT foreign key, and allowing merges that cancel past overspending, shown in the preview.
+3. **Carel tested on CT 161, with the database checked after each step:** hide, merge (the preview showed £315.00 → £815.00, which was correct), rename, reorder, moving between groups, deleting a group. Renaming and reordering a **group** weren't tried there; the automated tests cover them.
+4. README feature list and roadmap updated.
 
 ## Next steps
 
-1. **TASK-H003 (categories).** It must:
-   - refuse to delete the inflow category
-   - handle a deleted category nulling a budget↔tracking transfer leg, which is then flagged as uncategorised (that's acceptable)
-   - settle the open decision on overspending (below)
+1. **TASK-H004 (accounts).**
+   - Account deletion must handle transfer legs. The other leg of a transfer must be deleted or unlinked by the app (see Landmines).
+   - `transactions.account_id` is still `ON DELETE CASCADE`. Consider whether H004 wants the same RESTRICT treatment; ask Carel first, as with H003.
 2. **After that:**
-   - H004, accounts. Account deletion must handle transfer legs (see Landmines).
-   - H005, credit cards. Card payments reuse transfers.
+   - H005, credit cards. Card payments reuse transfers. It needs system categories that can't be deleted; the H003 routes only manage `kind == 'standard'`.
    - H006, CSV import.
 
 ## Open decisions
@@ -57,7 +51,6 @@ All verified on 2026-10-27 unless marked otherwise.
 - **Inline category picker on transfer legs:** the budget leg of a budget↔tracking transfer still offers "Uncategorised" in the list's inline picker. If chosen, the leg is just flagged as uncategorised. It's recorded in the task file; fix it only if Carel wants it.
 - **HTTPS.** The deployment is plain HTTP. Options are Home_Web_Games' proxy01 or the bundled Caddy. Not started; do it before real use, especially now that it's reachable over the VPN.
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
-- **H003:** whether to accept that merging categories can change past overspending (Known Issues in `TASKS/TASK-H003.md`).
 
 ## Failed approaches
 
@@ -77,10 +70,15 @@ All verified on 2026-10-27 unless marked otherwise.
   - **SQLite doesn't enforce FKs here**, so the app deletes the other leg. Any new delete path (H004 accounts, H006 import) must delete or unlink the other leg itself.
   - The category lives on the budget leg only.
   - `takes_category` needs `transfer.account` loaded.
+- **Categories (H003):**
+  - Deleting a category goes through `merge_category()`, or `db.delete` only when `category_in_use()` is false. PostgreSQL refuses anything else (RESTRICT); SQLite doesn't enforce foreign keys.
+  - `build_budget()` returns hidden categories in `view.hidden`, not in the groups. Any new total must include both.
+  - On the original demo data, November's Ready to Assign was £1,000 below October's because of an October overspend. That's the overspending rule, not a bug.
+- **Read-only budget checks on CT 161:** run `build_budget` in `docker compose exec -T app python -` with `make_session_factory(make_engine(get_settings().database_url))`, then `db.rollback()`.
 - **Testing with Carel on CT 161:** check the database after each step. The UI can look right while saving the wrong thing; the plain-transaction save in item 2 of "Completed this session" was only caught that way. Read-only query: `docker compose exec -T db sh -c "psql -U \$POSTGRES_USER -d \$POSTGRES_DB -c '...'"` in `/opt/zerobase`. App request logs: `docker compose logs app`.
 - **Inflow category:**
   - Stored as `categories.kind = 'inflow'`, `group_id` NULL, one per user.
-  - Deleting it would uncategorise all income, so H003 must refuse that.
+  - Deleting it would uncategorise all income, so the H003 routes refuse it (404).
   - `/budget/assign` returns 404 for it.
 - **`inflow_category()`** only `flush()`es, so callers must commit. `_pickers()` commits on purpose, even on GET.
 - **Redeploying CT 161:** `ssh root@192.168.1.50 'cd /opt/zerobase && git fetch -q origin && git checkout -q <branch> && git reset -q --hard origin/<branch> && docker compose up -d --build'`. Run `./scripts/backup.sh` first if the deploy includes a migration or data changes. Never touch other guests (VMIDs 100–160).
