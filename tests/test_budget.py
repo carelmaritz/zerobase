@@ -1,12 +1,15 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import select
 
 from zerobase.budget import (
     account_balances,
     add_months,
     build_budget,
+    category_in_use,
     inflow_category,
+    merge_category,
     parse_month,
 )
 from zerobase.models import (
@@ -276,3 +279,131 @@ def test_uncategorised_budget_leg_to_tracking_is_still_flagged(db, world):
     transfer(db, world, date(2026, 10, 5), 20_000, world["account"], world["tracking"])
     view = build_budget(db, world["user"].id, OCT)
     assert (view.uncategorised_count, view.uncategorised_outflow) == (1, -20_000)
+
+
+# --- Hiding and merging categories (TASK-H003) ---
+
+JAN = date(2027, 1, 1)
+MONTHS = [OCT, NOV, DEC, JAN]
+
+
+@pytest.fixture
+def dining(db, world):
+    category = Category(
+        user_id=world["user"].id, group_id=world["groceries"].group_id, name="Dining out"
+    )
+    db.add(category)
+    db.commit()
+    return category
+
+
+def assign_to(db, w, category, month, amount):
+    db.add(Assignment(user_id=w["user"].id, category_id=category.id, month=month, amount=amount))
+    db.commit()
+
+
+def lines_by_name(view):
+    return {ln.category.name: ln for block in view.groups for ln in block.lines}
+
+
+def snapshot(db, w):
+    """Ready to Assign and total Available for every test month."""
+    result = []
+    for month in MONTHS:
+        view = build_budget(db, w["user"].id, month)
+        lines = [ln for block in view.groups for ln in block.lines] + view.hidden
+        result.append((view.ready_to_assign, sum(ln.available for ln in lines)))
+    return result
+
+
+def test_hidden_category_is_listed_apart_but_still_counts(db, world):
+    income(db, world, date(2026, 10, 5), 100_000)
+    assign(db, world, OCT, 60_000)
+    world["groceries"].hidden = True
+    db.commit()
+
+    view = build_budget(db, world["user"].id, OCT)
+    assert view.groups[0].lines == []
+    assert [(ln.category.name, ln.available) for ln in view.hidden] == [("Groceries", 60_000)]
+    assert view.ready_to_assign == 40_000
+
+
+def test_merge_moves_transactions_and_sums_assignments_in_the_same_month(db, world, dining):
+    groceries = world["groceries"]
+    income(db, world, date(2026, 10, 5), 100_000)
+    assign_to(db, world, groceries, OCT, 30_000)
+    assign_to(db, world, dining, OCT, 20_000)
+    assign_to(db, world, dining, NOV, 5_000)
+    txn(db, world, date(2026, 10, 9), -4_000, category=dining)
+    before = snapshot(db, world)
+    groceries_id = groceries.id
+
+    merge_category(db, dining, groceries)
+    db.commit()
+
+    rows = db.execute(
+        select(Assignment.month, Assignment.amount).where(Assignment.category_id == groceries_id)
+    ).all()
+    assert sorted(rows) == [(OCT, 50_000), (NOV, 5_000)]
+    assert db.scalar(select(Transaction.category_id).where(Transaction.amount == -4_000)) == (
+        groceries_id
+    )
+    assert db.scalar(select(Category).where(Category.name == "Dining out")) is None
+    assert snapshot(db, world) == before
+    assert lines_by_name(build_budget(db, world["user"].id, OCT))["Groceries"].available == 46_000
+
+
+def test_merge_drops_an_assignment_that_sums_to_zero(db, world, dining):
+    assign_to(db, world, world["groceries"], OCT, 10_000)
+    assign_to(db, world, dining, OCT, -10_000)
+    merge_category(db, dining, world["groceries"])
+    db.commit()
+    assert db.scalars(select(Assignment)).all() == []
+
+
+def test_merge_keeps_totals_over_several_months_without_overspending(db, world, dining):
+    income(db, world, date(2026, 10, 1), 200_000)
+    income(db, world, date(2026, 12, 1), 50_000)
+    for month, g, d in [(OCT, 40_000, 15_000), (NOV, 10_000, 15_000), (DEC, 0, 30_000)]:
+        assign_to(db, world, world["groceries"], month, g)
+        assign_to(db, world, dining, month, d)
+    txn(db, world, date(2026, 10, 20), -35_000, category=world["groceries"])
+    txn(db, world, date(2026, 11, 20), -14_000, category=dining)
+    txn(db, world, date(2026, 12, 20), 2_000, category=dining)  # refund
+    before = snapshot(db, world)
+
+    preview = build_budget(
+        db, world["user"].id, JAN, merge=(dining.id, world["groceries"].id)
+    ).ready_to_assign
+    merge_category(db, dining, world["groceries"])
+    db.commit()
+
+    assert snapshot(db, world) == before
+    assert preview == before[-1][0]
+
+
+def test_merge_can_cancel_past_overspending_and_the_preview_shows_it(db, world, dining):
+    income(db, world, date(2026, 10, 1), 100_000)
+    assign_to(db, world, world["groceries"], OCT, 10_000)
+    assign_to(db, world, dining, OCT, 10_000)
+    txn(db, world, date(2026, 10, 15), -13_000, category=dining)  # 3,000 overspent
+    user_id = world["user"].id
+    assert build_budget(db, user_id, NOV).ready_to_assign == 77_000
+
+    preview = build_budget(db, user_id, NOV, merge=(dining.id, world["groceries"].id))
+    assert preview.ready_to_assign == 80_000  # the groceries surplus now covers it
+    assert "Dining out" not in lines_by_name(preview)
+    assert build_budget(db, user_id, NOV).ready_to_assign == 77_000  # the preview wrote nothing
+
+    merge_category(db, dining, world["groceries"])
+    db.commit()
+    assert build_budget(db, user_id, NOV).ready_to_assign == 80_000
+
+
+def test_category_in_use(db, world, dining):
+    assert not category_in_use(db, dining)
+    assign_to(db, world, dining, OCT, 1)
+    assert category_in_use(db, dining)
+    assert not category_in_use(db, world["groceries"])
+    txn(db, world, date(2026, 10, 1), -1, category=world["groceries"])
+    assert category_in_use(db, world["groceries"])

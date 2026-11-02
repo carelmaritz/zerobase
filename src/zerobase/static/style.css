@@ -92,6 +92,19 @@ button.danger:hover { color: var(--neg-fg); }
 .inline-form input { flex: 1; }
 .new-group { margin-top: 1.5rem; max-width: 26rem; }
 
+.manage { padding: .5rem 1.25rem; }
+.manage-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--border); }
+.manage-row:last-child { border-bottom: 0; }
+.manage-row.group input { font-weight: 700; }
+.manage-row > .inline-form { flex: 1 1 16rem; }
+.manage-row.is-hidden input { color: var(--muted); }
+.manage .row-actions { flex-wrap: wrap; }
+.manage .row-actions select { width: auto; }
+a.danger:hover { color: var(--neg-fg); }
+.preview { margin: 1rem 0; }
+.hidden-categories { margin-top: 1.5rem; }
+.hidden-categories summary { cursor: pointer; color: var(--muted); }
+
 .error { color: var(--neg-fg); background: var(--neg-bg); padding: .5rem .75rem; border-radius: 8px; margin: 0 0 1rem; }
 .notice { background: var(--zero-bg); padding: .75rem 1rem; border-radius: 8px; }
 

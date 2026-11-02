@@ -65,9 +65,32 @@
   {% endfor %}
 </table>
 
+{% if view.hidden %}
+<details class="hidden-categories">
+  <summary>Hidden categories ({{ view.hidden|length }})</summary>
+  <table class="budget">
+    <thead>
+      <tr><th scope="col">Category</th><th scope="col" class="r">Assigned</th><th scope="col" class="r">Activity</th><th scope="col" class="r">Available</th></tr>
+    </thead>
+    <tbody>
+      {% for line in view.hidden %}
+      <tr>
+        <th scope="row">{{ line.category.name }}</th>
+        <td class="r">{{ line.assigned|money }}</td>
+        <td class="r">{{ line.activity|money }}</td>
+        <td class="r">{{ num("hidden-avail-" ~ line.category.id, line.available, pill=True) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Hidden categories still count towards Ready to Assign. <a href="/categories">Unhide one</a> to assign to it.</p>
+</details>
+{% endif %}
+
 <form class="inline-form new-group" method="post" action="/budget/groups">
   <input type="hidden" name="month" value="{{ month_key }}">
   <input type="text" name="name" maxlength="60" placeholder="New category group" aria-label="New category group" required>
   <button type="submit">Add group</button>
 </form>
+<p><a href="/categories">Edit categories</a>: rename, reorder, move, hide or delete.</p>
 {% endblock %}

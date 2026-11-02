@@ -13,7 +13,7 @@ from .config import Settings, get_settings
 from .db import make_engine, make_session_factory
 from .deps import NotAuthenticated
 from .migrate import upgrade_to_head
-from .routers import accounts, auth, budget, transactions
+from .routers import accounts, auth, budget, categories, transactions
 from .security import LoginThrottle
 from .templating import PACKAGE_DIR, make_templates
 
@@ -94,6 +94,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
-    for module in (auth, budget, accounts, transactions):
+    for module in (auth, budget, categories, accounts, transactions):
         app.include_router(module.router)
     return app

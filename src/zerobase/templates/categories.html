@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Edit categories{% endblock %}
+{% block content %}
+<h1>Edit categories</h1>
+<p><a href="/budget">&lsaquo; Back to the budget</a></p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if notice %}
+<p class="notice" role="status">{{ notice.name }} still has {{ notice.available|money }} available this month.
+  Hidden categories keep their money; they are listed under <a href="/budget">Hidden</a> at the foot of the budget.</p>
+{% endif %}
+
+{% for group, categories in groups %}
+<section class="card manage">
+  <div class="manage-row group">
+    <form class="inline-form" method="post" action="/groups/{{ group.id }}/rename">
+      <input type="text" name="name" value="{{ group.name }}" maxlength="60" required aria-label="Name of group {{ group.name }}">
+      <button type="submit">Rename</button>
+    </form>
+    <div class="row-actions">
+      {% if not loop.first %}<form method="post" action="/groups/{{ group.id }}/move"><button type="submit" name="direction" value="up" aria-label="Move group {{ group.name }} up">&uarr;</button></form>{% endif %}
+      {% if not loop.last %}<form method="post" action="/groups/{{ group.id }}/move"><button type="submit" name="direction" value="down" aria-label="Move group {{ group.name }} down">&darr;</button></form>{% endif %}
+      {% if not categories %}<form method="post" action="/groups/{{ group.id }}/delete"><button type="submit" class="link danger">Delete group</button></form>{% endif %}
+    </div>
+  </div>
+
+  {% for category in categories %}
+  <div class="manage-row{% if category.hidden %} is-hidden{% endif %}">
+    <form class="inline-form" method="post" action="/categories/{{ category.id }}/rename">
+      <input type="text" name="name" value="{{ category.name }}" maxlength="60" required aria-label="Name of category {{ category.name }}">
+      <button type="submit">Rename</button>
+    </form>
+    <div class="row-actions">
+      {% if not loop.first %}<form method="post" action="/categories/{{ category.id }}/move"><button type="submit" name="direction" value="up" aria-label="Move {{ category.name }} up">&uarr;</button></form>{% endif %}
+      {% if not loop.last %}<form method="post" action="/categories/{{ category.id }}/move"><button type="submit" name="direction" value="down" aria-label="Move {{ category.name }} down">&darr;</button></form>{% endif %}
+      {% if groups|length > 1 %}
+      <form class="inline-form" method="post" action="/categories/{{ category.id }}/group">
+        <select name="group_id" aria-label="Group for {{ category.name }}">
+          {% for g, _ in groups %}<option value="{{ g.id }}"{% if g.id == group.id %} selected{% endif %}>{{ g.name }}</option>{% endfor %}
+        </select>
+        <button type="submit">Move</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/categories/{{ category.id }}/hide">
+        {% if category.hidden %}
+        <span class="muted">Hidden</span> <button type="submit" name="hidden" value="false" class="link">Unhide</button>
+        {% else %}
+        <button type="submit" name="hidden" value="true" class="link">Hide</button>
+        {% endif %}
+      </form>
+      <a class="danger" href="/categories/{{ category.id }}/delete">Delete</a>
+    </div>
+  </div>
+  {% else %}
+  <p class="muted">No categories in this group.</p>
+  {% endfor %}
+</section>
+{% endfor %}
+<p class="muted">Add categories and groups on the <a href="/budget">budget</a> page.</p>
+{% endblock %}
