@@ -168,6 +168,14 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
 - **Step 1 done (2026-11-02):** the budget maths is now a pure function. `build_budget` fills a `Ledger` (plain sums from the database), and `compute_budget(ledger, category_ids, month)` returns each category's `Figures` and Ready to Assign. Card funding lives in `_roll_month`. Examples 1–9 pass in `tests/test_card_maths.py`, and the existing budget tests are unchanged (118 pass).
   - For step 4: `build_budget` must leave payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
 - **Step 2 done (2026-11-02):** migration `0006` (`0006_credit_cards.py`) adds `categories.account_id` (unique, FK → accounts, RESTRICT) and `category_groups.kind` (`standard` | `card_payments`). Up/down and the drift test pass on SQLite and PostgreSQL 16. On PostgreSQL, deleting a user still cascades through a card, its payment category and their transactions. With foreign keys switched on, SQLite refuses that delete, but that was already true before this change (the H003/H004 RESTRICT keys cause it). The app never switches them on in SQLite, so the test checks the delete on PostgreSQL only.
+- **Steps 3 and 4 done (2026-11-02):**
+  - **Creating a card:** "Credit card" on the add-account form. It is always a budget account, even if the box is unticked.
+    - `budget.add_payment_category()` creates the payment category, named after the card, in the system group. `card_payments_group()` creates that group first in the budget if it's missing.
+    - A negative opening balance is filed under the payment category: starting debt. A positive one goes to Ready to Assign.
+  - **`build_budget`:** card activity is split per card; payments come from transfers between a card and any budget account; card balances are worked out up to the end of the month shown. Payment categories are kept out of `category_ids`.
+  - **Type lock:** a card can't change its type, and nothing can become a card (pulled forward from step 5).
+  - **Tests:** `tests/test_cards.py` (8 tests).
+  - **Performance:** `/budget` with 5,000 transactions over 3 years and two cards takes about 70 ms on local PostgreSQL. The script was a throwaway in the scratchpad.
 
 ---
 

@@ -35,7 +35,7 @@ from datetime import date
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
-from .models import Account, Assignment, Category, CategoryGroup, Transaction
+from .models import CREDIT_CARD, Account, Assignment, Category, CategoryGroup, Transaction
 
 
 def month_start(d: date) -> date:
@@ -253,9 +253,13 @@ def build_budget(
         .order_by(Category.sort_order, Category.id)
     ).all()
     inflow_ids = {c.id for c in categories if c.is_inflow}
+    # A payment category's own transactions are a card's starting debt, not activity.
+    payment_ids = {c.id for c in categories if c.is_card_payment}
     categories = [c for c in categories if not c.is_inflow and c.id != source_id]
 
-    ledger = Ledger()
+    ledger = Ledger(
+        payment_categories={c.account_id: c.id for c in categories if c.is_card_payment}
+    )
     assigned = ledger.assigned
     for category_id, m, amount in db.execute(
         select(Assignment.category_id, Assignment.month, Assignment.amount).where(
@@ -268,26 +272,60 @@ def build_budget(
     year = func.extract("year", Transaction.date)
     mon = func.extract("month", Transaction.date)
 
-    def monthly_totals(*conditions):
-        """Sum of on-budget transactions per (category, month), up to the selected month."""
-        return db.execute(
-            select(Transaction.category_id, year, mon, func.sum(Transaction.amount))
-            .join(Account, Account.id == Transaction.account_id)
-            .where(
-                Transaction.user_id == user_id,
-                Account.on_budget.is_(True),
-                Transaction.date < next_month,
-                *conditions,
-            )
-            .group_by(Transaction.category_id, year, mon)
+    is_card = Account.kind == CREDIT_CARD
+    for category_id, y, m, account_id, card, total in db.execute(
+        select(
+            Transaction.category_id, year, mon, Account.id, is_card, func.sum(Transaction.amount)
         )
-
-    for category_id, y, m, total in monthly_totals(Transaction.category_id.is_not(None)):
+        .join(Account, Account.id == Transaction.account_id)
+        .where(
+            Transaction.user_id == user_id,
+            Account.on_budget.is_(True),
+            Transaction.date < next_month,
+            Transaction.category_id.is_not(None),
+        )
+        .group_by(Transaction.category_id, year, mon, Account.id, is_card)
+    ):
+        when, total = _year_month(y, m), int(total)
         if category_id in inflow_ids:
-            ledger.income[_year_month(y, m)] = int(total)
+            ledger.income[when] = ledger.income.get(when, 0) + total
+        elif category_id in payment_ids:
+            continue
+        elif card:
+            key3 = (remap(category_id), when, account_id)
+            ledger.card[key3] = ledger.card.get(key3, 0) + total
         else:
-            key = (remap(category_id), _year_month(y, m))
-            ledger.cash[key] = ledger.cash.get(key, 0) + int(total)
+            key = (remap(category_id), when)
+            ledger.cash[key] = ledger.cash.get(key, 0) + total
+
+    # Card payments: a transfer between a card and another budget account. The card side's
+    # amount comes out of the payment category (a £100 payment arrives as +£100).
+    payment_leg = aliased(Transaction)
+    paying_account = aliased(Account)
+    for account_id, y, m, total in db.execute(
+        select(Transaction.account_id, year, mon, func.sum(Transaction.amount))
+        .join(Account, Account.id == Transaction.account_id)
+        .join(payment_leg, payment_leg.id == Transaction.transfer_id)
+        .join(paying_account, paying_account.id == payment_leg.account_id)
+        .where(
+            Transaction.user_id == user_id,
+            is_card,
+            paying_account.on_budget.is_(True),
+            Transaction.date < next_month,
+        )
+        .group_by(Transaction.account_id, year, mon)
+    ):
+        ledger.payments[(account_id, _year_month(y, m))] = -int(total)
+
+    ledger.card_balances = {
+        account_id: int(total)
+        for account_id, total in db.execute(
+            select(Transaction.account_id, func.sum(Transaction.amount))
+            .join(Account, Account.id == Transaction.account_id)
+            .where(Transaction.user_id == user_id, is_card, Transaction.date < next_month)
+            .group_by(Transaction.account_id)
+        )
+    }
 
     # Uncategorised transactions would otherwise vanish from the maths, so surface them.
     # A transfer leg to another budget account needs no category, so it isn't flagged.
@@ -311,7 +349,8 @@ def build_budget(
         )
     ).one()
 
-    figures, ready_to_assign = compute_budget(ledger, [c.id for c in categories], month)
+    standard_ids = [c.id for c in categories if not c.is_card_payment]
+    figures, ready_to_assign = compute_budget(ledger, standard_ids, month)
     blocks = {g.id: GroupBlock(g) for g in groups}
     hidden: list[CategoryLine] = []
     for category in categories:
@@ -417,6 +456,52 @@ def inflow_category(db: Session, user_id: int) -> Category:
         category = Category(user_id=user_id, group_id=None, name="Ready to Assign", kind="inflow")
         db.add(category)
         db.flush()
+    return category
+
+
+CARD_PAYMENTS_GROUP = "Credit Card Payments"
+
+
+def card_payments_group(db: Session, user_id: int) -> CategoryGroup:
+    """The user's system group for card payment categories, created first in the budget."""
+    group = db.scalar(
+        select(CategoryGroup).where(
+            CategoryGroup.user_id == user_id, CategoryGroup.kind == "card_payments"
+        )
+    )
+    if group is None:
+        first = db.scalar(
+            select(func.min(CategoryGroup.sort_order)).where(CategoryGroup.user_id == user_id)
+        )
+        group = CategoryGroup(
+            user_id=user_id,
+            name=CARD_PAYMENTS_GROUP,
+            kind="card_payments",
+            sort_order=(first or 0) - 1,
+        )
+        db.add(group)
+        db.flush()
+    return group
+
+
+def add_payment_category(db: Session, card: Account) -> Category:
+    """Create a card's payment category, named after the card. Flushes; the caller commits."""
+    group = card_payments_group(db, card.user_id)
+    position = db.scalar(
+        select(func.coalesce(func.max(Category.sort_order), -1) + 1).where(
+            Category.group_id == group.id
+        )
+    )
+    category = Category(
+        user_id=card.user_id,
+        group_id=group.id,
+        name=card.name[:60],
+        sort_order=position,
+        kind="card_payment",
+        account_id=card.id,
+    )
+    db.add(category)
+    db.flush()
     return category
 
 

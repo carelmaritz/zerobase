@@ -5,15 +5,21 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..budget import account_balances, inflow_category
+from ..budget import account_balances, add_payment_category, inflow_category
 from ..deps import current_user, get_db, owned_account
-from ..models import Account, Transaction, User
+from ..models import CREDIT_CARD, Account, Transaction, User
 from ..money import parse_money
 from ..templating import render
 
 router = APIRouter()
 
-ACCOUNT_KINDS = {"checking": "Checking", "savings": "Savings", "cash": "Cash", "other": "Other"}
+ACCOUNT_KINDS = {
+    "checking": "Checking",
+    "savings": "Savings",
+    "cash": "Cash",
+    "other": "Other",
+    CREDIT_CARD: "Credit card",
+}
 NAME_ERROR = "Give the account a name (up to 80 characters)."
 
 
@@ -62,16 +68,28 @@ def add_account(
     except ValueError as exc:
         return _page(request, db, user, f"Opening balance: {exc}", 400)
 
-    account = Account(user_id=user.id, name=name, kind=kind, on_budget=on_budget is not None)
+    card = kind == CREDIT_CARD
+    account = Account(
+        user_id=user.id, name=name, kind=kind, on_budget=card or on_budget is not None
+    )
     db.add(account)
     db.flush()
-    if balance:
+    category_id = None
+    if card:
+        # Debt on a new card is filed under its payment category: it shows there as needed,
+        # without touching Ready to Assign. A card in credit is money to assign.
+        payment = add_payment_category(db, account)
+        if balance < 0:
+            category_id = payment.id
+    if account.on_budget and category_id is None:
         # A budget account's opening balance is money to assign (or owed, if negative).
+        category_id = inflow_category(db, user.id).id
+    if balance:
         db.add(
             Transaction(
                 user_id=user.id,
                 account_id=account.id,
-                category_id=inflow_category(db, user.id).id if account.on_budget else None,
+                category_id=category_id,
                 date=date.today(),
                 payee="Starting balance",
                 amount=balance,
@@ -145,7 +163,8 @@ def edit_account(
     cleaned = _clean_name(name)
     if cleaned is None:
         return _edit_page(request, db, user, account, NAME_ERROR, 400, name=name)
-    if kind not in ACCOUNT_KINDS:
+    # A card's type is fixed: its payment category and history depend on it.
+    if kind not in ACCOUNT_KINDS or (kind == CREDIT_CARD) != account.is_credit_card:
         error = "Choose a valid account type."
         return _edit_page(request, db, user, account, error, 400, name=name)
     account.name, account.kind = cleaned, kind

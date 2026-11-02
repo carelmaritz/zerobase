@@ -35,6 +35,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+CREDIT_CARD = "credit_card"  # Account.kind of a credit card: always a budget account
+
+
 class Account(Base):
     __tablename__ = "accounts"
 
@@ -47,6 +50,10 @@ class Account(Base):
     # Closed accounts (zero balance) drop out of the pickers and the main list, but their
     # history still counts.
     closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+    @property
+    def is_credit_card(self) -> bool:
+        return self.kind == CREDIT_CARD
 
 
 class CategoryGroup(Base):
@@ -88,6 +95,10 @@ class Category(Base):
     @property
     def is_inflow(self) -> bool:
         return self.kind == "inflow"
+
+    @property
+    def is_card_payment(self) -> bool:
+        return self.kind == "card_payment"
 
 
 class Transaction(Base):
