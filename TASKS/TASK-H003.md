@@ -99,7 +99,11 @@ Branch `TASK-H003`. Decisions from Carel (2026-11-02): FK changed to RESTRICT; m
 - **Budget page**: a collapsible "Hidden categories" table shows their figures (read-only). Hiding a category with money in it shows a notice.
 - **Tests**: 6 new in `tests/test_budget.py` (hide, merge, the invariants across 4 months, the overspending preview) and 14 in `tests/test_categories.py` (routes, ownership, inflow protection, the database-level RESTRICT guard). 92 pass on SQLite and on PostgreSQL 16.
 
-Not done yet: Carel testing on CT 161.
+Tested by Carel on CT 161 (2026-11-02, database checked after each step; backup `zerobase-20261102-092603.sql.gz` taken before deploying):
+- Hid Groceries (£202.45 available): flag set, data untouched, Ready to Assign and total Available unchanged with it hidden or not.
+- Merged Rent / Mortgage into Holidays: September and October assignments summed to £1,400 each; the Landlord payments and the budget leg of transfer 44/45 moved, with the link intact. November Ready to Assign went from £315.00 to £815.00 (Holidays' £500 surplus covers half of October's £1,000 overspend), and the preview showed exactly that. Ready to Assign plus total Available is unchanged.
+
+Still to test on CT 161: rename, reorder, move between groups, delete a group.
 
 Notes:
 - The preview shows Ready to Assign for the **current month** only. A changed overspend in an earlier month carries through to every later month, so the current month shows the effect.
