@@ -1,12 +1,12 @@
 # TASK-H003: Manage categories and groups
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: M - 3-5 days
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-02
-**Completed**:
+**Completed**: 2026-11-02
 **Branch**: TASK-H003
 **Dependencies**: TASK-C001
 
@@ -103,7 +103,8 @@ Tested by Carel on CT 161 (2026-11-02, database checked after each step; backup 
 - Hid Groceries (£202.45 available): flag set, data untouched, Ready to Assign and total Available unchanged with it hidden or not.
 - Merged Rent / Mortgage into Holidays: September and October assignments summed to £1,400 each; the Landlord payments and the budget leg of transfer 44/45 moved, with the link intact. November Ready to Assign went from £315.00 to £815.00 (Holidays' £500 surplus covers half of October's £1,000 overspend), and the preview showed exactly that. Ready to Assign plus total Available is unchanged.
 
-Still to test on CT 161: rename, reorder, move between groups, delete a group.
+- Renamed Insurance to "Rainy Day", reordered and moved categories between groups (including hidden Groceries), emptied and deleted the Needs group: order and groups as expected; assignments (24, £8,990.00), transactions (43, −£176,070.99) and November figures (£815.00 Ready to Assign, £4,538.00 Available) unchanged; no transaction points at a missing category.
+- Not tried on CT 161: renaming or reordering a **group** (covered by automated tests). Carel chose to merge without it.
 
 Notes:
 - The preview shows Ready to Assign for the **current month** only. A changed overspend in an earlier month carries through to every later month, so the current month shows the effect.
