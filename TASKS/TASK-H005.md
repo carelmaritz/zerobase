@@ -64,6 +64,89 @@ YNAB's model:
 
 ---
 
+## Agreed plan (2026-11-02)
+
+Approved by Carel on 2026-11-02, along with these decisions:
+- The full YNAB model.
+- Calculated on read; nothing derived is stored.
+- Cash spending is funded first when a category is overspent with both kinds.
+- When two cards partly drain the same category, the money goes to the cards in account order.
+- Starting debt doesn't touch Ready to Assign.
+- A negative payment category counts as cash overspending.
+- The credit card type is fixed once the account is created.
+
+### The maths
+
+All computed on read in `build_budget`; nothing derived is stored. For each category and month:
+
+- `C` = net non-card activity (cash), `R` = card refunds (cards whose net activity in the category is positive), and `S_c` = net spending on card `c` (cards whose net is negative, as a positive amount).
+- `base = carry + assigned + C + R`. This is the money left after cash spending: **cash is funded first**, which is YNAB's documented rule.
+- **Funding:** for each spending card, in account order, `funded_c = min(S_c, max(0, remaining))`, where `remaining` starts at `base` and drops by `S_c` each time. `funded_c` moves into card `c`'s payment category. A refund moves `R_c` out of it.
+- **Available** = `carry + assigned + C + R − ΣS`. That's the same figure as today, so the category's own line doesn't change.
+- If Available < 0 at month end:
+  - **cash overspending** = `max(0, −base)`. This reduces Ready to Assign from the next month on, as today.
+  - **credit overspending** = the rest. It does **not** touch Ready to Assign; it stays as card debt that isn't set aside.
+  - Either way, the category starts the next month at 0.
+- Funding works on **month totals**, so date order inside a month doesn't matter. Assigning more later in the same month funds earlier card spending (YNAB's "cover credit overspending"). Topping up in a *later* month doesn't fund it retroactively.
+- **Payment category:** Available = carry + assigned + funded moves − refund moves + transfer activity. Each transfer between a budget account and the card adds −`x` to the payment category's activity, where `x` is the card side's amount: a £100 payment is `x = +100` → −100. A card-to-card balance transfer moves the set-aside money with the debt. If it goes negative (paying more than was set aside, or a refund after payment), that is **cash overspending**, as a red payment category is in YNAB.
+- **"Needed"** on a payment line = `max(0, debt at month end − Available)`, shown as underfunded.
+- **Starting debt:** a card's negative opening balance goes on the card in its own payment category. That transaction is debt, not activity. Ready to Assign is unchanged; the payment category shows the full amount as needed.
+
+### Worked examples (each becomes a unit test)
+
+| # | Setup | Result |
+|---|---|---|
+| 1 | Oct: Groceries assigned £100; £30 on the card | Groceries £70; Payment £30; card −£30; Ready to Assign unchanged |
+| 2 | Oct: Groceries £100; £120 on the card | Groceries −£20 (credit overspending); Payment £100, £20 needed. Nov: Groceries £0, **Ready to Assign not reduced** |
+| 3 | Oct: Groceries £50; £40 cash from Current, £30 on the card | base £10 → £10 funded; credit overspending £20; cash overspending £0 |
+| 3b | As 3, but £60 cash | base −£10 → cash overspending £10 (Nov Ready to Assign −£10); credit overspending £30 |
+| 4 | Example 2, then assign £20 more to Groceries in Oct | Fully funded: Payment £120, Groceries £0 |
+| 5 | Example 2, then assign £20 to Groceries in Nov | Groceries £20; Payment still £100, still £20 needed |
+| 6 | Example 2; Nov: pay £100 from Current | Payment £0; card −£20; £20 needed |
+| 6b | Example 2; Nov: pay £120 | Payment −£20 → cash overspending → Dec Ready to Assign −£20 |
+| 7 | Example 1; Nov: £10 refund on the card to Groceries | Groceries +£10; Payment −£10 for the month |
+| 8 | New card with −£500 opening | Ready to Assign unchanged; Payment £0, £500 needed; assign £500 then pay £500 → both £0 |
+| 9 | Two cards, Groceries £50; £40 on card A, £40 on card B (A has the lower ID) | A funded £40, B £10; credit overspending £30 |
+
+### Schema (migration `0006`)
+
+- `categories.account_id` (nullable, unique, FK → accounts, RESTRICT): set only on payment categories.
+- New `categories.kind` value: `card_payment`.
+- `category_groups.kind` (`standard` | `card_payments`): one system group per user, created with the first card.
+- `credit_card` becomes an account kind. It is always a budget account.
+
+### Steps, each with its completion test
+
+1. **Maths first (riskiest):** split the per-category month loop in `build_budget` into a pure function, then add card funding. Done when examples 1–9 pass as unit tests, and the existing budget tests are unchanged.
+2. **Migration `0006`:** done when up/down works and the drift test passes on SQLite and PostgreSQL.
+3. **Create a card:** the "Credit card" type on the add form creates the account, its payment category, and the system group if missing. The opening balance becomes starting debt. Done when web tests pass.
+4. **`build_budget` wiring:**
+   - Card activity is split per card (SQL grouped by category, month and account).
+   - Transfer activity goes to payment categories.
+   - The view gains `credit_overspent`, `cash_overspent` and `needed`.
+   - Done when the success criteria pass as web/budget tests, and 5,000 transactions over 3 years render `/budget` in < 0.5 s locally.
+5. **Protection and pickers:**
+   - Payment categories and the system group are excluded from the H003 routes and from adding categories.
+   - Payment categories can't be chosen as a transaction's category; the server refuses them.
+   - Renaming a card renames its payment category.
+   - Closing a card hides its payment category, which still counts.
+   - Deleting an empty card deletes its payment category, if that has no assignments.
+   - The type can't change to or from credit card.
+   - Done when each is tested.
+6. **UI (plain):**
+   - A "Credit Card Payments" group on the budget page.
+   - Credit overspending in a different colour from cash overspending.
+   - "£X needed" on payment lines.
+   - Done when the web tests check the markup.
+7. **Bookkeeping and deploy:**
+   - Tests pass on PostgreSQL. Update the task file, `TASKS.md` and README.
+   - Back up CT 161, deploy, and have Carel test, with the database checked after each step.
+
+### Out of scope (beyond the list above)
+
+- Cash advances (card → budget account money with no envelope).
+- Converting existing negative budget accounts into cards. CT 161 has none.
+
 ## Implementation Plan
 
 ### Phase 1: Design spike
