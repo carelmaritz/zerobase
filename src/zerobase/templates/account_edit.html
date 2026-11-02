@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }}{% endblock %}
+{% block content %}
+<h1>{{ account.name }}{% if account.closed %} <small class="muted">(closed)</small>{% endif %}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if close_refused %}
+<p class="error" role="alert">{{ account.name }} has a balance of {{ balance|money }}. Bring it to zero first,
+  with a transaction or a transfer to another account, then close it.</p>
+{% endif %}
+
+<p>Balance: <strong>{{ balance|money }}</strong> ·
+  <a href="/transactions?account_id={{ account.id }}">View transactions</a> ·
+  <a href="/accounts">Back to accounts</a></p>
+
+<section class="card">
+  <h2>Details</h2>
+  <form method="post" action="/accounts/{{ account.id }}/edit" class="grid-form">
+    <label>Name <input type="text" name="name" maxlength="80" required value="{{ name }}"></label>
+    <label>Type
+      <select name="kind">
+        {% for key, label in kinds.items() %}<option value="{{ key }}"{% if key == account.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <p class="muted">Counts toward: {{ "Budget" if account.on_budget else "Tracking only" }}.
+      This can't be changed after the account is created, because it would change which past transactions count in the budget.</p>
+    <button type="submit" class="primary">Save</button>
+  </form>
+</section>
+
+<section class="card">
+  {% if account.closed %}
+  <h2>Reopen</h2>
+  <p>Reopening puts {{ account.name }} back in the account list and the transaction form.</p>
+  <form method="post" action="/accounts/{{ account.id }}/close">
+    <button type="submit" name="closed" value="false">Reopen {{ account.name }}</button>
+  </form>
+  {% else %}
+  <h2>Close</h2>
+  <p>A closed account is left out of the transaction form and listed separately. Its past transactions still count in the budget.
+    {% if balance %}Only an account with a zero balance can be closed.{% endif %}</p>
+  <form method="post" action="/accounts/{{ account.id }}/close">
+    <button type="submit" name="closed" value="true">Close {{ account.name }}</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Delete</h2>
+  {% if has_transactions %}
+  <p>{{ account.name }} has transactions, so it can't be deleted.{% if not account.closed %} Close it instead.{% endif %}</p>
+  {% else %}
+  <p>{{ account.name }} has no transactions, so deleting it changes nothing else.</p>
+  <form method="post" action="/accounts/{{ account.id }}/delete">
+    <button type="submit" class="danger">Delete {{ account.name }}</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

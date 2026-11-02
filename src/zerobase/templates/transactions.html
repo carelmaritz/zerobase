@@ -8,6 +8,7 @@
 {% if not accounts %}
 <p class="notice">Add an <a href="/accounts">account</a> before recording transactions.</p>
 {% else %}
+{% if accounts|rejectattr("closed")|list %}
 <section class="card">
   <h2>Add a transaction</h2>
   <form method="post" action="/transactions" class="grid-form">
@@ -18,11 +19,14 @@
     For a transfer, choose the other account; the outflow or inflow is from this account's side.
     Between two budget accounts it needs no category; into or out of a tracking account it needs one.</p>
 </section>
+{% else %}
+<p class="notice">All your accounts are closed. Reopen one on the <a href="/accounts">Accounts</a> page to record transactions.</p>
+{% endif %}
 
 <p class="filters">
   Show:
   <a href="/transactions"{% if account_id is none %} aria-current="true"{% endif %}>All accounts</a>
-  {% for account in accounts %}
+  {% for account in accounts if not account.closed or account.id == account_id %}
   <a href="/transactions?account_id={{ account.id }}"{% if account.id == account_id %} aria-current="true"{% endif %}>{{ account.name }}</a>
   {% endfor %}
 </p>
