@@ -1,12 +1,12 @@
 # TASK-H004: Manage accounts
 
-**Status**: TODO
+**Status**: DONE
 **Priority**: H - High
 **Effort**: S - 1-2 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
-**Completed**:
+**Started**: 2026-11-02
+**Completed**: 2026-11-02
 **Branch**: TASK-H004
 **Dependencies**: TASK-C001
 
@@ -35,10 +35,10 @@ Note: `transactions.account_id` is `ON DELETE CASCADE`, so deleting an account t
 - Switching an account between budget and tracking is **not** allowed after creation (it would rewrite history: categorised transactions would drop out of envelopes). YNAB doesn't allow it either.
 
 ### Success Criteria
-- [ ] Rename and kind change persist
-- [ ] Closing requires a zero balance; closed accounts disappear from pickers but their history still counts in the budget
-- [ ] Delete refused when transactions exist
-- [ ] Ownership checks; migration up/down tested
+- [x] Rename and kind change persist
+- [x] Closing requires a zero balance; closed accounts disappear from pickers but their history still counts in the budget
+- [x] Delete refused when transactions exist
+- [x] Ownership checks; migration up/down tested
 
 ### Out of Scope
 
@@ -75,20 +75,28 @@ Checked before planning: with RESTRICT on these FKs, PostgreSQL 16 still deletes
 ## Implementation Plan
 
 ### Phase 1
-- [ ] Migration: `closed` flag
-- [ ] Rename/kind edit route and form
-- [ ] Close/reopen with zero-balance check
-- [ ] Delete when empty
-- [ ] Filter closed accounts from transaction-form pickers
+- [x] Migration: `closed` flag
+- [x] Rename/kind edit route and form
+- [x] Close/reopen with zero-balance check
+- [x] Delete when empty
+- [x] Filter closed accounts from transaction-form pickers
 
 ### Phase 2
-- [ ] Tests
+- [x] Tests
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+Done 2026-11-02, merged to `main`. 106 tests pass on SQLite and PostgreSQL 16; ruff clean.
+
+- **Migration `0005`** (`0005_manage_accounts.py`): `accounts.closed` (default false); `transactions.account_id` FK `CASCADE` → `RESTRICT`. Downgrade restores CASCADE and drops the flag.
+- **`/accounts/{id}/edit`** (GET page, POST save): name (1–80 characters) and kind. Budget/tracking is shown but fixed. The Accounts page has a "Manage" link per account.
+- **`/accounts/{id}/close`** (`closed=true|false`): closing needs a zero balance, otherwise 400 with the balance and a hint to clear it with a transaction or transfer. Reopening always works. Closed accounts are listed under "Closed accounts"; their history stays at `/transactions?account_id=`.
+- **`/accounts/{id}/delete`**: only with no transactions; otherwise 400 and "Close it instead".
+- **Pickers:** closed accounts are left out of the account and transfer drop-downs and the filter links, unless already selected (shown as "(closed)"). If every account is closed, the add form is replaced by a notice.
+- **Validation:** `_validate()` takes `existing`; a closed account on either leg is refused unless the transaction being edited already uses it. The inline category picker still works on transactions in closed accounts (it doesn't change the account).
+- Tests: `tests/test_accounts.py` (14 tests).
 
 ---
 
@@ -101,10 +109,11 @@ None yet.
 ## Testing
 
 ### Test Cases
-- [ ] Close with non-zero balance refused
-- [ ] Closed account's past transactions still count in budget figures
-- [ ] Delete with transactions refused; delete empty account works
-- [ ] Other user's account: 404
+- [x] Close with non-zero balance refused
+- [x] Closed account's past transactions still count in budget figures
+- [x] Delete with transactions refused; delete empty account works
+- [x] Other user's account: 404
+- [x] Carel tested on CT 161 (2026-11-02), with the database checked afterwards: changing Savings' type; closing Current refused (non-zero); adding and deleting an empty account; a £1,800 transfer Savings → Current (linked legs 46/47, no category), then closing Savings at £0; editing Savings' starting-balance transaction while closed. Ready to Assign stayed £815.00. Not tried there (covered by automated tests): a new transaction into a closed account being refused, and reopening.
 
 ---
 

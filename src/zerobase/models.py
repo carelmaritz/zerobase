@@ -44,6 +44,9 @@ class Account(Base):
     kind: Mapped[str] = mapped_column(String(20), default="checking")
     # Budget accounts feed the envelopes; tracking accounts are balance-only.
     on_budget: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Closed accounts (zero balance) drop out of the pickers and the main list, but their
+    # history still counts.
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class CategoryGroup(Base):
@@ -85,7 +88,8 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
+    # RESTRICT: only an account with no transactions can be deleted.
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
     # The inflow category means income (Ready to Assign). NULL means not categorised yet:
     # it counts nowhere in the budget and is flagged in the UI. RESTRICT: deleting a
     # category must move its transactions elsewhere first (``budget.merge_category``).

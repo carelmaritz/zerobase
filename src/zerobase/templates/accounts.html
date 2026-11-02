@@ -6,7 +6,7 @@
 
 {% if accounts %}
 <table class="list">
-  <thead><tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Counts toward</th><th scope="col" class="r">Balance</th></tr></thead>
+  <thead><tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Counts toward</th><th scope="col" class="r">Balance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
     {% for account, balance in accounts %}
     <tr>
@@ -14,12 +14,30 @@
       <td>{{ kinds.get(account.kind, "Other") }}</td>
       <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
       <td class="r">{{ balance|money }}</td>
+      <td class="row-actions"><a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
-{% else %}
+{% elif not closed_accounts %}
 <p class="notice">Add your first account to start budgeting. Its opening balance becomes money you can assign.</p>
+{% endif %}
+
+{% if closed_accounts %}
+<h2>Closed accounts</h2>
+<table class="list">
+  <tbody>
+    {% for account, balance in closed_accounts %}
+    <tr>
+      <th scope="row"><a href="/transactions?account_id={{ account.id }}">{{ account.name }}</a></th>
+      <td>{{ kinds.get(account.kind, "Other") }}</td>
+      <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
+      <td class="r">{{ balance|money }}</td>
+      <td class="row-actions"><a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endif %}
 
 <section class="card">

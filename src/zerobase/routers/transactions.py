@@ -133,11 +133,14 @@ class ValidTransaction:
     transfer_category_id: int | None = None
 
 
-def _validate(db: Session, user: User, form: TransactionForm) -> ValidTransaction | str:
+def _validate(
+    db: Session, user: User, form: TransactionForm, existing: Transaction | None = None
+) -> ValidTransaction | str:
     """Check a submitted add or edit form. Returns the clean fields, or an error message.
 
     A foreign account or category ID raises a 404, as everywhere else. For a transfer, the
-    amount is from this account's side; the other leg gets the opposite.
+    amount is from this account's side; the other leg gets the opposite. A closed account
+    is refused unless ``existing`` (the transaction being edited) already uses it.
     """
     account = owned_account(db, user, form.account_id)
     transfer = None
@@ -148,6 +151,14 @@ def _validate(db: Session, user: User, form: TransactionForm) -> ValidTransactio
             return "Choose a valid account to transfer to or from."
         if transfer.id == account.id:
             return "A transfer needs two different accounts."
+    already_used = set()
+    if existing is not None:
+        already_used.add(existing.account_id)
+        if existing.transfer is not None:
+            already_used.add(existing.transfer.account_id)
+    for each in (account, transfer):
+        if each is not None and each.closed and each.id not in already_used:
+            return f"{each.name} is closed. Reopen it on the Accounts page to add to it."
     try:
         when_date = date.fromisoformat(form.when)
     except ValueError:
@@ -307,7 +318,7 @@ def edit_transaction(
 ):
     transaction = owned_transaction(db, user, transaction_id)
     back_to = int(return_to) if return_to.isdigit() else None
-    valid = _validate(db, user, form)
+    valid = _validate(db, user, form, existing=transaction)
     if isinstance(valid, str):
         return _edit_page(request, db, user, transaction, form.values(), back_to, valid, 400)
     _save(db, user, valid, transaction)
