@@ -112,7 +112,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | TASK-H003 | Manage categories and groups | M | DONE | Claude | TASK-C001 | Rename, reorder, move, hide and delete (with reassignment) categories and groups |
 | TASK-H004 | Manage accounts | S | DONE | Claude | TASK-C001 | Rename, close/reopen and delete accounts |
 | TASK-H005 | Credit card accounts | L | DONE | Claude | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
-| TASK-H006 | CSV import | L | TODO | Unassigned | TASK-C001 | Import bank statements from CSV with column mapping, preview and duplicate detection |
+| TASK-H006 | CSV and OFX import | L | IN_PROGRESS | Claude | TASK-C001 | Import bank statements from CSV (with column mapping) or OFX, with preview and duplicate detection |
 
 ---
 

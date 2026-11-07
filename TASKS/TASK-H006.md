@@ -1,11 +1,11 @@
-# TASK-H006: CSV import
+# TASK-H006: CSV and OFX import
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-07
 **Completed**:
 **Branch**: TASK-H006
 **Dependencies**: TASK-C001
@@ -44,7 +44,7 @@ Manual entry is the only way to record transactions today. Every UK bank offers 
 
 ### Out of Scope
 
-- OFX/QFX/QIF formats (possible follow-up).
+- QIF, unless Carel's bank only offers that; Microsoft Money's own `.mny` files (see the draft plan, decision 7).
 - Direct bank connections / open banking.
 - Payee rename and auto-categorisation rules (possible follow-up).
 - Matching imported rows to scheduled transactions (TASK-M002) or transfers (TASK-H002).
@@ -56,6 +56,101 @@ Manual entry is the only way to record transactions today. Every UK bank offers 
 **Free to decide**: Where preview state lives between steps (re-upload, hidden form field, or a short-lived server-side store), UI layout.
 
 **Ask first**: Any new dependency (e.g. a charset-detection library), storing uploaded files on disk.
+
+---
+
+## Agreed plan (2026-11-07)
+
+Approved by Carel on 2026-11-07, with OFX (Microsoft Money format) added at his request. He'll provide a real bank download for the fixtures when the work reaches the parsers; that also settles whether QIF is needed.
+
+### Decisions
+
+1. **Preview state lives in a hidden form field.** The uploaded text is carried in the page through mapping, preview and confirm. Each step parses it again, and confirm validates it again, so a tampered page can only affect the user's own import. Nothing is stored on the server and there's nothing to clean up. **This caps uploads at 1 MB**, because Starlette refuses form fields larger than that. A year of statements is typically well under that (a few hundred bytes per row). The alternative is a short-lived drafts table, which is more code plus expiry.
+2. **Likely duplicates of hand-entered transactions are matched, not imported.** A match is a transaction in the same account with no `import_id`, the same amount, and a date up to 3 days away; each one is matched at most once, to the closest date. By default the imported row isn't added. Instead, the existing transaction gets the row's `import_id`, so later imports skip it too. Ticking "import as new" overrides this. (YNAB also matches; the alternative is to only flag the row.)
+3. **Credit cards and transfers get no special handling.** Imported rows are uncategorised. A card payment row (an inflow on the card) can't take the payment category. Instead, the user edits it into a transfer from Current, which the edit page already supports. That creates the Current leg with no `import_id`. When Current's statement is imported later, decision 2 matches that leg instead of duplicating it. Automatic transfer matching stays out of scope.
+4. **No "undo import".** The preview, with a sign-flip option and totals, is the guard. Batch undo would need an import-batch table; it's a possible follow-up.
+5. **Encodings:** UTF-8 (with or without BOM), falling back to Windows-1252, which is how a `£` usually arrives in UK exports. No new dependency.
+6. **Test fixtures:** made-up CSV files in common UK layouts:
+   - a signed amount column
+   - separate paid-in and paid-out columns
+   - a `DR`/`CR` suffix
+   - `01 Jan 2026` dates
+   - a trailing balance column
+
+   They aren't copied from any particular bank. Anonymised real exports from Carel's banks would be better, if available.
+7. **Microsoft Money format (added 2026-11-07 at Carel's request):** OFX, which UK banks often label as "Microsoft Money".
+   - Both versions are handled: OFX 1.x (SGML) and 2.x (XML), read with a small stdlib parser of the `<STMTTRN>` blocks. No new dependency.
+   - There's no mapping step: an OFX file names its own fields.
+   - QIF (the older "Quicken/Money" download) is included only if one of Carel's banks offers it rather than OFX.
+   - Money's own `.mny` data file is out of scope: it's a proprietary encrypted database.
+
+### Parsing rules
+
+The rules below are for CSV. OFX has its own subsection after them.
+
+- **Mapping:**
+  - Columns are chosen by position.
+  - Dates use one of `DD/MM/YYYY`, `YYYY-MM-DD`, `MM/DD/YYYY`, `DD-MM-YYYY` or `DD Mon YYYY`. The format is guessed from the file, and the user confirms it.
+  - The amount is either one signed column or separate out and in columns. There's an option to flip the sign, and the number of header rows to skip.
+- **Amounts:** `12.34 DR` and `(12.34)` are read as negative, and `CR` as positive. Everything then goes through `money.parse_money`.
+- **Row errors:** a row with a bad date, a bad amount, a zero amount or the wrong column count is shown in the preview with the reason, and can't be ticked. Blank rows are skipped silently.
+- **Text fields:** the payee is cut to 100 characters and the memo to 255, as in the transaction form.
+- **`import_id`:** `"{date}:{amount}:{n}"`, where `n` counts the repeats of that date and amount within the file, so two £3 coffees on the same day get `:1` and `:2`. It's unique per account, and re-importing or overlapping files skips IDs that are already present.
+- **Account:** it must be owned by the user and open. A tracking account's rows get no category, as with typed entries.
+
+#### OFX
+
+- **Fields:**
+  - `DTPOSTED` gives the date, from its first 8 digits.
+  - `TRNAMT` is already signed; it goes through `parse_money`.
+  - `NAME` (or `PAYEE/NAME`) is the payee and `MEMO` the memo.
+  - `FITID` is the bank's own ID for the transaction.
+- **`import_id` = `"ofx:{FITID}"`.** A bank's ID is more reliable than date, amount and count, so OFX re-imports are exact.
+- **Account number check:** the file's `ACCTID` is saved with the account's import settings. A different number next time is shown as a warning in the preview, in case the wrong account was chosen.
+- **Mixing formats in one account:** CSV and OFX IDs never match each other. The likely-match rule (decision 2) therefore also covers transactions imported in the *other* format, so switching formats flags overlaps instead of doubling them.
+- **Detection:** the extension (`.ofx`, `.qfx`, `.csv`) or the content (`OFXHEADER:` or `<OFX>`) decides the parser.
+
+### Schema (migration `0007`)
+
+- `transactions.import_id`: nullable string, `UniqueConstraint(account_id, import_id)`. Both PostgreSQL and SQLite allow many NULLs.
+- `import_mappings`: `account_id` unique (FK → accounts, CASCADE), `user_id`, the `settings` as JSON text, and the header row (CSV) or `ACCTID` (OFX) seen last. A different header next time sends the user back to the mapping step. Deleting an empty account also deletes its mapping in code, because SQLite doesn't enforce the cascade here.
+
+### Flow
+
+1. **`GET /accounts/{id}/import`:** the upload form, linked from the account's page.
+2. **`POST /accounts/{id}/import`:** checks `Content-Length` and reads at most 1 MB + 1 byte, then decodes the file.
+   - If the header matches the saved mapping, it goes straight to the preview; otherwise to the mapping form, guessed from the header.
+3. **`POST /accounts/{id}/import/preview`:** shows the rows with their status: new, already imported, likely match (with the existing transaction shown), or error. It also shows totals in and out and the date range.
+4. **`POST /accounts/{id}/import/confirm`:**
+   - Parses and checks for duplicates again, then inserts the ticked rows and stamps the matches, all in one commit.
+   - Saves the mapping.
+   - Redirects to the account's transactions, with "Imported N, matched M, skipped K already imported".
+
+### Steps, each with its completion test
+
+1. **Parser (pure module `importer.py`):** CSV text plus a mapping gives parsed rows or row errors, and the date format guess. Done when unit tests cover every case in "Test Cases" below.
+1b. **OFX parser** (same module): OFX text gives the same parsed rows, plus the account number. Done when unit tests pass on 1.x SGML (unclosed tags) and 2.x XML samples, a Windows-1252 file, and a file with no transactions.
+2. **Duplicate and match logic (pure):** IDs, skipping existing IDs, and the manual-match rule. Done when unit tests cover re-import, overlap, the two-coffees case and closest-date matching.
+3. **Migration `0007`:** done when up/down and the drift test pass on SQLite and PostgreSQL.
+4. **Routes and templates (plain UI):** done when web tests cover:
+   - an import with each amount layout, and an OFX import
+   - an OFX re-import adds nothing, and an account-number mismatch warns
+   - re-import adds nothing
+   - an overlapping file adds only the new rows
+   - a saved mapping is reused
+   - a changed header goes back to mapping
+   - the size limit
+   - a foreign account (404) and a closed account
+5. **Bookkeeping and deploy:** tests pass on PostgreSQL; update the task file, `TASKS.md` and README. Back up CT 161, deploy, and have Carel import a real statement, with the database checked afterwards.
+
+### Out of scope (beyond the list above)
+
+- Undoing an import.
+- Payee rules and auto-categorisation.
+- Matching transfers automatically.
+- QIF, unless Carel's bank only offers that (decision 7).
+- Microsoft Money's own `.mny` files.
+- Uploads over 1 MB.
 
 ---
 
@@ -120,4 +215,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-07 by Claude*
