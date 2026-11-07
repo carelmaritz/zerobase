@@ -77,7 +77,7 @@ All verified on 2026-11-07.
 
 - **Task bookkeeping:** the task file is the source of truth. Any status change updates the task file **and** the `TASKS/TASKS.md` row in the same commit. One branch per task, named `TASK-XNNN`.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
-- **CT 161 is on a branch with migration `0007`.** Don't redeploy `main` there until H006 is merged: `main`'s app doesn't know revision `0007`. To go back without merging, restore `zerobase-20261107-155225.sql.gz`, and only with Carel's OK.
+- **CT 161 is on a branch with migration `0007`.** Don't redeploy `main` there until H006 is merged. `main` has no revision `0007`, so its startup upgrade will most likely refuse the database (expected, not tried). To go back without merging, restore `zerobase-20261107-155225.sql.gz`, and only with Carel's OK.
 - **Imports (H006):**
   - **File text between steps:** it travels in a hidden form field. The routes read their own form through `import_form`, with a 4 MB field limit; Starlette's default is 1 MB, and decoded Windows-1252 text can be longer than the upload. Uploads are capped at 1 MB (`importer.MAX_BYTES`).
   - **Import IDs:** `ofx:<FITID>` for OFX, `<date>:<amount>:<n>` for CSV. The likely-match rule also covers transactions imported in the other format.
