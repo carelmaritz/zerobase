@@ -1,12 +1,12 @@
 # TASK-H005: Credit card accounts
 
-**Status**: TODO
+**Status**: DONE
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
-**Completed**:
+**Started**: 2026-11-02
+**Completed**: 2026-11-07
 **Branch**: TASK-H005
 **Dependencies**: TASK-C001, TASK-H002
 
@@ -40,12 +40,12 @@ YNAB's model:
 - UI: payment categories shown in their own group; credit overspending visually distinct from cash overspending.
 
 ### Success Criteria
-- [ ] Spending £30 from a category with ≥£30 available moves £30 to the card's payment category
-- [ ] Spending more than available: funded part moves, unfunded part shown as credit overspending, Ready to Assign next month unaffected by it
-- [ ] Paying the card from a checking account reduces payment category Available and card debt
-- [ ] Refund on the card reverses the movement
-- [ ] Starting a card with existing debt shows the payment category needing that amount
-- [ ] Unit tests in `test_budget.py` covering each rule across month boundaries
+- [x] Spending £30 from a category with ≥£30 available moves £30 to the card's payment category
+- [x] Spending more than available: funded part moves, unfunded part shown as credit overspending, Ready to Assign next month unaffected by it
+- [x] Paying the card from a checking account reduces payment category Available and card debt
+- [x] Refund on the card reverses the movement
+- [x] Starting a card with existing debt shows the payment category needing that amount
+- [x] Unit tests covering each rule across month boundaries (`tests/test_card_maths.py`, plus `tests/test_cards.py`)
 
 ### Out of Scope
 
@@ -150,22 +150,55 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
 ## Implementation Plan
 
 ### Phase 1: Design spike
-- [ ] Write out the maths for funded/unfunded card spending per month, including rollover of the payment category and of credit overspending, with worked examples in this file
-- [ ] Confirm model with the user
+- [x] Write out the maths for funded/unfunded card spending per month, including rollover of the payment category and of credit overspending, with worked examples in this file
+- [x] Confirm model with the user
 
 ### Phase 2: Model
-- [ ] Migration: account kind, link from account to its payment category, system category flag
-- [ ] Extend `build_budget`; unit tests first
+- [x] Migration: account kind, link from account to its payment category, system category flag
+- [x] Extend `build_budget`; unit tests first
 
 ### Phase 3: UI and flows
-- [ ] Create card account flow, payment via transfer, display of credit overspending
-- [ ] End-to-end tests
+- [x] Create card account flow, payment via transfer, display of credit overspending
+- [x] End-to-end tests
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+Done 2026-11-07, merged to `main`. 137 tests pass on SQLite and PostgreSQL 16; ruff clean.
+
+- **Step 1 done (2026-11-02):** the budget maths is now a pure function. `build_budget` fills a `Ledger` (plain sums from the database), and `compute_budget(ledger, category_ids, month)` returns each category's `Figures` and Ready to Assign. Card funding lives in `_roll_month`. Examples 1–9 pass in `tests/test_card_maths.py`, and the existing budget tests are unchanged (118 pass).
+  - For step 4: `build_budget` must leave payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
+- **Step 2 done (2026-11-02):** migration `0006` (`0006_credit_cards.py`) adds `categories.account_id` (unique, FK → accounts, RESTRICT) and `category_groups.kind` (`standard` | `card_payments`). Up/down and the drift test pass on SQLite and PostgreSQL 16. On PostgreSQL, deleting a user still cascades through a card, its payment category and their transactions. With foreign keys switched on, SQLite refuses that delete, but that was already true before this change (the H003/H004 RESTRICT keys cause it). The app never switches them on in SQLite, so the test checks the delete on PostgreSQL only.
+- **Steps 3 and 4 done (2026-11-02):**
+  - **Creating a card:** "Credit card" on the add-account form. It is always a budget account, even if the box is unticked.
+    - `budget.add_payment_category()` creates the payment category, named after the card, in the system group. `card_payments_group()` creates that group first in the budget if it's missing.
+    - A negative opening balance is filed under the payment category: starting debt. A positive one goes to Ready to Assign.
+  - **`build_budget`:** card activity is split per card; payments come from transfers between a card and any budget account; card balances are worked out up to the end of the month shown. Payment categories are kept out of `category_ids`.
+  - **Type lock:** a card can't change its type, and nothing can become a card (pulled forward from step 5).
+  - **Tests:** `tests/test_cards.py` (8 tests).
+  - **Performance:** `/budget` with 5,000 transactions over 3 years and two cards takes about 70 ms on local PostgreSQL. The script was a throwaway in the scratchpad.
+- **Step 5 done (2026-11-02):**
+  - **H003 routes:** `_editable_category` only accepts `kind == 'standard'`, and `_owned_group` only standard groups. Everything else gets a 404, and the card payments group is left off `/categories`. `/budget/categories` won't add to the system group, and the budget page shows no "add" row there.
+  - **Pickers:** payment categories are hidden unless already selected, as with hidden categories.
+  - **Validation:** `_validate()` refuses a payment category unless the edited transaction (or its other side) already uses it, with the message "To pay a credit card, record a transfer to it". The inline picker refuses it too.
+  - **Card changes:** renaming a card renames its payment category; closing or reopening it hides or shows it; deleting an empty card deletes the payment category first, but refuses if the category has assignments.
+- **Step 6 done (2026-11-02):**
+  - **Budget page:** the "Credit Card Payments" group is listed first.
+  - **Credit overspending colour:** an Available that is overspent only on credit gets a `credit` (amber) pill; any cash overspending keeps it red, as in YNAB.
+  - **Notes in words:** each line can show "£X more needed to pay off this card" or "£X of card spending not covered", so the meaning doesn't rely on colour. The notes are also in the HTMX update after assigning.
+  - **Code:** `available()` and `line_note()` macros in `_macros.html`; `--credit-*` colour tokens with dark-mode values.
+- **Step 7 done (2026-11-07):** README updated. Backed up CT 161 (`zerobase-20261102-140509.sql.gz`, schema `0005`) and deployed. Carel tested on CT 161, with the database checked afterwards:
+  - Added the card with a -£500 opening balance: all of it needed on the payment line; Ready to Assign stayed £815.00.
+  - £30 on Dining out, fully funded: the money moved to the payment category.
+  - £200 on Transport with £119.10 available: £80.90 of credit overspending, shown with the amber pill and note; December's Ready to Assign wasn't reduced.
+  - £30 transfer from Current to the card: the payment category and the debt both fell by £30.
+  - £10 refund to Dining out: Dining out +£10, payment category -£10, debt -£10, so the amount needed stayed £580.90.
+  - Renamed the card: the payment category followed.
+  - Not tried there, but covered by the automated tests: the server refusing a type change (the edit page only offers "Credit card", so it can't be attempted in the UI), refusing a payment category on a transaction, and closing or deleting a card.
+- **Known edges, left alone:**
+  - If the starting-debt transaction is edited to a positive amount, it stays in the payment category: the card shows as in credit, but the money doesn't reach Ready to Assign.
+  - A transfer from a card to a budget account (a cash advance) counts as reversing a payment.
 
 ---
 
@@ -181,11 +214,11 @@ None yet.
 Mostly pure unit tests on the maths with hand-checked expected values, plus web tests for the flows.
 
 ### Test Cases
-- [ ] Fully funded spending, partially funded, unfunded
-- [ ] Refund in a later month
-- [ ] Payment greater than the payment category Available
-- [ ] Two cards, same category
-- [ ] Card spending in a month, category topped up next month (does not retroactively fund)
+- [x] Fully funded spending, partially funded, unfunded
+- [x] Refund in a later month
+- [x] Payment greater than the payment category Available
+- [x] Two cards, same category
+- [x] Card spending in a month, category topped up next month (does not retroactively fund)
 
 ---
 
@@ -197,8 +230,8 @@ Mostly pure unit tests on the maths with hand-checked expected values, plus web 
 
 ## Known Issues & Gotchas
 
-- [ ] Funding is decided per transaction in date order within a month, against the category's available at that point; YNAB's exact ordering rules matter for edge cases. Document the rule chosen.
-- [ ] Interacts with category deletion (TASK-H003): payment categories must be protected.
+- [x] (Decided: month totals, cash first, then cards in account order.) Funding is decided per transaction in date order within a month, against the category's available at that point; YNAB's exact ordering rules matter for edge cases. Document the rule chosen.
+- [x] Interacts with category deletion (TASK-H003): payment categories must be protected.
 
 ---
 
@@ -216,4 +249,4 @@ Mostly pure unit tests on the maths with hand-checked expected values, plus web 
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-07 by Claude*

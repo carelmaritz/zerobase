@@ -111,7 +111,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | TASK-H002 | Transfers between accounts | M | DONE | Claude | TASK-C001, TASK-H007 | Linked two-legged transfers that don't count as income or spending between budget accounts |
 | TASK-H003 | Manage categories and groups | M | DONE | Claude | TASK-C001 | Rename, reorder, move, hide and delete (with reassignment) categories and groups |
 | TASK-H004 | Manage accounts | S | DONE | Claude | TASK-C001 | Rename, close/reopen and delete accounts |
-| TASK-H005 | Credit card accounts | L | TODO | Unassigned | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
+| TASK-H005 | Credit card accounts | L | DONE | Claude | TASK-C001, TASK-H002 | YNAB-style credit cards with an automatic payment category |
 | TASK-H006 | CSV import | L | TODO | Unassigned | TASK-C001 | Import bank statements from CSV with column mapping, preview and duplicate detection |
 
 ---
@@ -149,7 +149,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 ---
 
-*Last Updated: 2026-10-22*
+*Last Updated: 2026-11-07*
 
 ## Quick Reference
 

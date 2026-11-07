@@ -151,11 +151,13 @@ def _validate(
             return "Choose a valid account to transfer to or from."
         if transfer.id == account.id:
             return "A transfer needs two different accounts."
-    already_used = set()
+    already_used, categories_used = set(), set()
     if existing is not None:
         already_used.add(existing.account_id)
+        categories_used.add(existing.category_id)
         if existing.transfer is not None:
             already_used.add(existing.transfer.account_id)
+            categories_used.add(existing.transfer.category_id)
     for each in (account, transfer):
         if each is not None and each.closed and each.id not in already_used:
             return f"{each.name} is closed. Reopen it on the Accounts page to add to it."
@@ -178,9 +180,13 @@ def _validate(
     category_id = None
     if form.category_id.strip():
         try:
-            category_id = owned_category(db, user, int(form.category_id)).id
+            category = owned_category(db, user, int(form.category_id))
         except ValueError:
             return "Choose a valid category."
+        # Only a card's starting debt sits in its payment category; pay a card by transfer.
+        if category.is_card_payment and category.id not in categories_used:
+            return "To pay a credit card, record a transfer to it."
+        category_id = category.id
 
     # Only a budget-account leg can have a category; for a transfer, only when the money
     # leaves or enters the budget, and then it must have one.
@@ -356,9 +362,12 @@ def set_category(
     new_category_id = None
     if category_id.strip():
         try:
-            new_category_id = owned_category(db, user, int(category_id)).id
+            category = owned_category(db, user, int(category_id))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid category") from None
+        if category.is_card_payment and category.id != transaction.category_id:
+            raise HTTPException(status_code=400, detail="Invalid category")
+        new_category_id = category.id
     if not transaction.takes_category:
         new_category_id = None
     transaction.category_id = new_category_id

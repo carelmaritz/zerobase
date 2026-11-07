@@ -172,3 +172,65 @@ def test_0003_links_transfer_legs_and_downgrade_keeps_them(engine):
         assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 2
     columns = {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert "transfer_id" not in columns
+
+
+def test_0006_adds_card_links_and_a_user_still_deletes_on_postgres(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0005")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO category_groups (user_id, name, sort_order) "
+                "SELECT id, 'Bills', 0 FROM users"
+            )
+        )
+
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        assert connection.execute(text("SELECT kind FROM category_groups")).scalar() == "standard"
+        # A card, its payment category in the system group, and its starting debt.
+        connection.execute(
+            text(
+                "INSERT INTO accounts (user_id, name, kind, on_budget, closed) "
+                "SELECT id, 'Visa', 'credit_card', :t, :f FROM users"
+            ),
+            {"t": True, "f": False},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO category_groups (user_id, name, sort_order, kind) "
+                "SELECT id, 'Credit Card Payments', 1, 'card_payments' FROM users"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO categories (user_id, group_id, name, sort_order, kind, hidden, "
+                "account_id) SELECT g.user_id, g.id, 'Visa', 0, 'card_payment', :f, a.id "
+                "FROM category_groups g, accounts a WHERE g.kind = 'card_payments'"
+            ),
+            {"f": False},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO transactions (user_id, account_id, category_id, date, payee, memo, "
+                "amount) SELECT user_id, account_id, id, '2026-10-01', '', '', -50000 "
+                "FROM categories"
+            )
+        )
+        # On PostgreSQL the user's rows cascade away despite the RESTRICT keys between them.
+        # (SQLite, with foreign keys switched on, refuses: it cascades in a different order.
+        # The app never switches them on there, and no route deletes users.)
+        if engine.dialect.name == "postgresql":
+            connection.execute(text("DELETE FROM users"))
+            for table in ("accounts", "categories", "category_groups", "transactions"):
+                assert connection.execute(text(f"SELECT count(*) FROM {table}")).scalar() == 0
+
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0005")
+    assert "account_id" not in {c["name"] for c in inspect(engine).get_columns("categories")}
+    assert "kind" not in {c["name"] for c in inspect(engine).get_columns("category_groups")}

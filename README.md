@@ -22,10 +22,11 @@ The arithmetic lives in [`src/zerobase/budget.py`](src/zerobase/budget.py) and i
 - Monthly budget view with category groups, inline assignment, rollover and overspending
 - Transactions with payee, memo and category, plus editing them and changing a category after the fact
 - Transfers between accounts, kept as two linked sides that are edited and deleted together
+- Credit cards, the YNAB way: spending from a funded category sets that money aside in the card's payment category, card spending a category can't cover shows as credit overspending (it adds to the debt instead of reducing Ready to Assign), and a transfer to the card pays it
 - Category management: rename, reorder, move between groups, hide, and delete by merging into another category (with a preview of any change to Ready to Assign)
 - Several users on one install, each with fully separate data
 
-Not there yet: credit cards, CSV import, reports. See the roadmap.
+Not there yet: CSV import, reports. See the roadmap.
 
 ## Quick start (Docker)
 
@@ -134,7 +135,7 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 
 - [x] Edit transactions
 - [x] Transfers between accounts
-- [ ] Credit card accounts
+- [x] Credit card accounts
 - [ ] CSV import
 - [x] Rename, reorder, hide and delete categories
 - [x] Rename, close and delete accounts

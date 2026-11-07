@@ -13,6 +13,20 @@ The model follows the zero-based / YNAB approach:
 * Ready to Assign = all income to date - all money assigned to date - past overspending.
 
 A **hidden** category still counts in all of this; it is just listed apart from its group.
+
+Credit cards (the YNAB model; worked examples in ``TASKS/TASK-H005.md``):
+
+* Each card has a **payment category**. Card spending in a category that has the money
+  moves that much into the card's payment category, set aside to pay the bill. A refund
+  on the card moves it back out.
+* Within a category and month, cash spending is funded first, then card spending, card by
+  card in account order. Funding uses month totals, so assigning more later in the month
+  funds earlier card spending.
+* Card spending the category can't fund is **credit overspending**: the category still
+  resets to zero next month, but Ready to Assign is not reduced. It is debt with nothing
+  set aside, and shows as "needed" on the payment category.
+* A transfer between a budget account and a card is a payment: it is activity in the
+  card's payment category. A payment category that goes negative is cash overspending.
 """
 
 from dataclasses import dataclass, field
@@ -21,7 +35,7 @@ from datetime import date
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
-from .models import Account, Assignment, Category, CategoryGroup, Transaction
+from .models import CREDIT_CARD, Account, Assignment, Category, CategoryGroup, Transaction
 
 
 def month_start(d: date) -> date:
@@ -49,6 +63,9 @@ class CategoryLine:
     assigned: int = 0
     activity: int = 0
     available: int = 0
+    cash_overspent: int = 0
+    credit_overspent: int = 0
+    needed: int = 0
 
 
 @dataclass
@@ -79,6 +96,130 @@ class BudgetView:
     uncategorised_outflow: int  # negative
     uncategorised_inflow: int
     hidden: list[CategoryLine] = field(default_factory=list)
+
+
+@dataclass
+class Ledger:
+    """What the budget maths needs from the database, as plain sums keyed by month (the 1st).
+
+    ``cash`` and ``card`` are activity in standard categories: ``card`` is what happened on
+    a credit card, keyed by (category, month, card account); ``cash`` is everything else.
+    ``payments`` is payment-category activity from transfers, keyed by (card, month).
+    """
+
+    income: dict[date, int] = field(default_factory=dict)
+    assigned: dict[tuple[int, date], int] = field(default_factory=dict)
+    cash: dict[tuple[int, date], int] = field(default_factory=dict)
+    card: dict[tuple[int, date, int], int] = field(default_factory=dict)
+    payments: dict[tuple[int, date], int] = field(default_factory=dict)
+    payment_categories: dict[int, int] = field(default_factory=dict)  # card -> category
+    card_balances: dict[int, int] = field(default_factory=dict)  # at the end of the month
+
+    def months(self) -> list[date]:
+        return [
+            *(m for _, m in self.assigned),
+            *(m for _, m in self.cash),
+            *(m for _, m, _ in self.card),
+            *(m for _, m in self.payments),
+            *self.income,
+        ]
+
+
+@dataclass
+class Figures:
+    """One category's numbers for the month shown."""
+
+    assigned: int = 0
+    activity: int = 0
+    available: int = 0
+    cash_overspent: int = 0
+    credit_overspent: int = 0
+    needed: int = 0  # payment categories only: debt not yet set aside
+
+
+@dataclass
+class _Month:
+    available: int
+    cash_overspent: int
+    credit_overspent: int
+    funded: dict[int, int]  # card -> moved into its payment category (negative: moved out)
+
+
+def _roll_month(carry: int, assigned: int, cash: int, cards: dict[int, int]) -> _Month:
+    """One category, one month. ``cards`` is net activity per card (negative: spending)."""
+    refunds = {card: v for card, v in cards.items() if v > 0}
+    spending = sorted((card, -v) for card, v in cards.items() if v < 0)
+    base = carry + assigned + cash + sum(refunds.values())  # left after cash spending
+    funded = {card: -v for card, v in refunds.items()}
+    remaining = base
+    for card, spent in spending:
+        funded[card] = min(spent, max(0, remaining))
+        remaining -= spent
+    available = remaining
+    overspent = max(0, -available)
+    cash_overspent = min(overspent, max(0, -base))
+    return _Month(available, cash_overspent, overspent - cash_overspent, funded)
+
+
+def compute_budget(
+    ledger: Ledger, category_ids: list[int], month: date
+) -> tuple[dict[int, Figures], int]:
+    """Every category's figures for ``month``, and Ready to Assign.
+
+    ``category_ids`` are the standard categories; payment categories come from the ledger.
+    Only data up to the end of ``month`` should be in the ledger.
+    """
+    months = []
+    cursor = min([month, *ledger.months()])
+    while cursor <= month:
+        months.append(cursor)
+        cursor = add_months(cursor, 1)
+
+    cards_by_category: dict[tuple[int, date], dict[int, int]] = {}
+    for (category_id, m, card), amount in ledger.card.items():
+        cards_by_category.setdefault((category_id, m), {})[card] = amount
+
+    figures: dict[int, Figures] = {}
+    cash_overspent_before = 0
+    funded: dict[tuple[int, date], int] = {}  # (card, month) -> moved to its payment category
+
+    def roll(category_id: int, inflows: dict[date, int], cards: dict[date, dict[int, int]]):
+        nonlocal cash_overspent_before
+        carry = 0
+        for m in months:
+            assigned = ledger.assigned.get((category_id, m), 0)
+            result = _roll_month(carry, assigned, inflows.get(m, 0), cards.get(m, {}))
+            for card, amount in result.funded.items():
+                funded[(card, m)] = funded.get((card, m), 0) + amount
+            if m < month:
+                cash_overspent_before += result.cash_overspent
+                carry = max(0, result.available)
+                continue
+            activity = inflows.get(m, 0) + sum(cards.get(m, {}).values())
+            figures[category_id] = Figures(
+                assigned,
+                activity,
+                result.available,
+                result.cash_overspent,
+                result.credit_overspent,
+            )
+
+    for category_id in category_ids:
+        roll(
+            category_id,
+            {m: ledger.cash.get((category_id, m), 0) for m in months},
+            {m: cards_by_category.get((category_id, m), {}) for m in months},
+        )
+    # Payment categories last: what flows into them depends on every other category.
+    for card, category_id in ledger.payment_categories.items():
+        flows = {m: funded.get((card, m), 0) + ledger.payments.get((card, m), 0) for m in months}
+        roll(category_id, flows, {})
+        line = figures[category_id]
+        debt = -ledger.card_balances.get(card, 0)
+        line.needed = max(0, debt - max(0, line.available))
+
+    ready = sum(ledger.income.values()) - sum(ledger.assigned.values()) - cash_overspent_before
+    return figures, ready
 
 
 def _year_month(year: float, month: float) -> date:
@@ -112,9 +253,14 @@ def build_budget(
         .order_by(Category.sort_order, Category.id)
     ).all()
     inflow_ids = {c.id for c in categories if c.is_inflow}
+    # A payment category's own transactions are a card's starting debt, not activity.
+    payment_ids = {c.id for c in categories if c.is_card_payment}
     categories = [c for c in categories if not c.is_inflow and c.id != source_id]
 
-    assigned: dict[tuple[int, date], int] = {}
+    ledger = Ledger(
+        payment_categories={c.account_id: c.id for c in categories if c.is_card_payment}
+    )
+    assigned = ledger.assigned
     for category_id, m, amount in db.execute(
         select(Assignment.category_id, Assignment.month, Assignment.amount).where(
             Assignment.user_id == user_id, Assignment.month <= month
@@ -126,28 +272,60 @@ def build_budget(
     year = func.extract("year", Transaction.date)
     mon = func.extract("month", Transaction.date)
 
-    def monthly_totals(*conditions):
-        """Sum of on-budget transactions per (category, month), up to the selected month."""
-        return db.execute(
-            select(Transaction.category_id, year, mon, func.sum(Transaction.amount))
-            .join(Account, Account.id == Transaction.account_id)
-            .where(
-                Transaction.user_id == user_id,
-                Account.on_budget.is_(True),
-                Transaction.date < next_month,
-                *conditions,
-            )
-            .group_by(Transaction.category_id, year, mon)
+    is_card = Account.kind == CREDIT_CARD
+    for category_id, y, m, account_id, card, total in db.execute(
+        select(
+            Transaction.category_id, year, mon, Account.id, is_card, func.sum(Transaction.amount)
         )
-
-    activity: dict[tuple[int, date], int] = {}
-    income: dict[date, int] = {}
-    for category_id, y, m, total in monthly_totals(Transaction.category_id.is_not(None)):
+        .join(Account, Account.id == Transaction.account_id)
+        .where(
+            Transaction.user_id == user_id,
+            Account.on_budget.is_(True),
+            Transaction.date < next_month,
+            Transaction.category_id.is_not(None),
+        )
+        .group_by(Transaction.category_id, year, mon, Account.id, is_card)
+    ):
+        when, total = _year_month(y, m), int(total)
         if category_id in inflow_ids:
-            income[_year_month(y, m)] = int(total)
+            ledger.income[when] = ledger.income.get(when, 0) + total
+        elif category_id in payment_ids:
+            continue
+        elif card:
+            key3 = (remap(category_id), when, account_id)
+            ledger.card[key3] = ledger.card.get(key3, 0) + total
         else:
-            key = (remap(category_id), _year_month(y, m))
-            activity[key] = activity.get(key, 0) + int(total)
+            key = (remap(category_id), when)
+            ledger.cash[key] = ledger.cash.get(key, 0) + total
+
+    # Card payments: a transfer between a card and another budget account. The card side's
+    # amount comes out of the payment category (a £100 payment arrives as +£100).
+    payment_leg = aliased(Transaction)
+    paying_account = aliased(Account)
+    for account_id, y, m, total in db.execute(
+        select(Transaction.account_id, year, mon, func.sum(Transaction.amount))
+        .join(Account, Account.id == Transaction.account_id)
+        .join(payment_leg, payment_leg.id == Transaction.transfer_id)
+        .join(paying_account, paying_account.id == payment_leg.account_id)
+        .where(
+            Transaction.user_id == user_id,
+            is_card,
+            paying_account.on_budget.is_(True),
+            Transaction.date < next_month,
+        )
+        .group_by(Transaction.account_id, year, mon)
+    ):
+        ledger.payments[(account_id, _year_month(y, m))] = -int(total)
+
+    ledger.card_balances = {
+        account_id: int(total)
+        for account_id, total in db.execute(
+            select(Transaction.account_id, func.sum(Transaction.amount))
+            .join(Account, Account.id == Transaction.account_id)
+            .where(Transaction.user_id == user_id, is_card, Transaction.date < next_month)
+            .group_by(Transaction.account_id)
+        )
+    }
 
     # Uncategorised transactions would otherwise vanish from the maths, so surface them.
     # A transfer leg to another budget account needs no category, so it isn't flagged.
@@ -171,41 +349,28 @@ def build_budget(
         )
     ).one()
 
-    seen_months = [m for (_, m) in assigned] + [m for (_, m) in activity] + list(income)
-    earliest = min([month, *seen_months])
-
+    standard_ids = [c.id for c in categories if not c.is_card_payment]
+    figures, ready_to_assign = compute_budget(ledger, standard_ids, month)
     blocks = {g.id: GroupBlock(g) for g in groups}
     hidden: list[CategoryLine] = []
-    overspent_before = 0
     for category in categories:
-        carry = 0
-        cursor = earliest
-        while cursor < month:
-            available = (
-                carry
-                + assigned.get((category.id, cursor), 0)
-                + activity.get((category.id, cursor), 0)
-            )
-            if available < 0:
-                overspent_before += -available
-                carry = 0
-            else:
-                carry = available
-            cursor = add_months(cursor, 1)
-        this_assigned = assigned.get((category.id, month), 0)
-        this_activity = activity.get((category.id, month), 0)
+        f = figures[category.id]
         line = CategoryLine(
-            category, this_assigned, this_activity, carry + this_assigned + this_activity
+            category,
+            f.assigned,
+            f.activity,
+            f.available,
+            f.cash_overspent,
+            f.credit_overspent,
+            f.needed,
         )
         (hidden if category.hidden else blocks[category.group_id].lines).append(line)
 
-    total_income = sum(income.values())
-    total_assigned = sum(assigned.values())
     return BudgetView(
         month=month,
         groups=list(blocks.values()),
-        ready_to_assign=total_income - total_assigned - overspent_before,
-        income_this_month=income.get(month, 0),
+        ready_to_assign=ready_to_assign,
+        income_this_month=ledger.income.get(month, 0),
         uncategorised_count=int(uncat_count),
         uncategorised_outflow=int(uncat_outflow),
         uncategorised_inflow=int(uncat_inflow),
@@ -291,6 +456,52 @@ def inflow_category(db: Session, user_id: int) -> Category:
         category = Category(user_id=user_id, group_id=None, name="Ready to Assign", kind="inflow")
         db.add(category)
         db.flush()
+    return category
+
+
+CARD_PAYMENTS_GROUP = "Credit Card Payments"
+
+
+def card_payments_group(db: Session, user_id: int) -> CategoryGroup:
+    """The user's system group for card payment categories, created first in the budget."""
+    group = db.scalar(
+        select(CategoryGroup).where(
+            CategoryGroup.user_id == user_id, CategoryGroup.kind == "card_payments"
+        )
+    )
+    if group is None:
+        first = db.scalar(
+            select(func.min(CategoryGroup.sort_order)).where(CategoryGroup.user_id == user_id)
+        )
+        group = CategoryGroup(
+            user_id=user_id,
+            name=CARD_PAYMENTS_GROUP,
+            kind="card_payments",
+            sort_order=(first or 0) - 1,
+        )
+        db.add(group)
+        db.flush()
+    return group
+
+
+def add_payment_category(db: Session, card: Account) -> Category:
+    """Create a card's payment category, named after the card. Flushes; the caller commits."""
+    group = card_payments_group(db, card.user_id)
+    position = db.scalar(
+        select(func.coalesce(func.max(Category.sort_order), -1) + 1).where(
+            Category.group_id == group.id
+        )
+    )
+    category = Category(
+        user_id=card.user_id,
+        group_id=group.id,
+        name=card.name[:60],
+        sort_order=position,
+        kind="card_payment",
+        account_id=card.id,
+    )
+    db.add(category)
+    db.flush()
     return category
 
 
