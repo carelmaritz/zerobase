@@ -61,7 +61,7 @@ Manual entry is the only way to record transactions today. Every UK bank offers 
 
 ## Agreed plan (2026-11-07)
 
-Approved by Carel on 2026-11-07, with OFX (Microsoft Money format) added at his request. He'll provide a real bank download for the fixtures when the work reaches the parsers; that also settles whether QIF is needed.
+Approved by Carel on 2026-11-07, with OFX (Microsoft Money format) added at Carel's request. Carel will provide a real bank download for the fixtures when the work reaches the parsers; that also settles whether QIF is needed.
 
 ### Decisions
 
@@ -171,7 +171,12 @@ The rules below are for CSV. OFX has its own subsection after them.
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Steps 1, 1b and 2 done (2026-11-07):** `src/zerobase/importer.py`, a pure module (no database or web), tested by 38 unit tests in `tests/test_importer.py`.
+  - **CSV:** `read_csv`, `guess_mapping`, `guess_date_format` and `parse_csv(text, Mapping)`. The delimiter is whichever of `,`, `;` or tab the first line uses most. `Mapping.problem()` says why a mapping can't be used.
+  - **OFX:** `parse_ofx` reads 1.x SGML and 2.x XML.
+  - **Shared:** `decode` reads UTF-8 (BOM or none), falling back to Windows-1252. `is_ofx` tells the formats apart.
+  - **`classify(rows, existing)`** gives each row a verdict: NEW, IMPORTED, MATCH (with the existing transaction's ID) or ERROR.
+  - **Fixtures** are still made up. They should be checked against Carel's real download when it arrives.
 
 ---
 
