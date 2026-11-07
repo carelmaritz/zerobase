@@ -1,49 +1,63 @@
-# Session Handover — 2026-11-07 — TASK-H005 (credit cards) done and merged; CT 161 on main
+# Session Handover — 2026-11-07 — H005 done; H006 (CSV and OFX import) built, awaiting Carel's real-file test
 
 ## Current state
 
 All verified on 2026-11-07.
 
-- **`main` at `2a48dbb`** ("Merge TASK-H005"), plus the commit that updated this handover. `main` and branch `TASK-H005` are pushed. 137 tests pass on SQLite and PostgreSQL 16; ruff is clean.
-- **Branches:** `main`, plus `TASK-H003`, `TASK-H004` and `TASK-H005` (all fully merged and pushed; delete only if Carel asks).
+- **`main` at `602a2e5`** ("H006: plan agreed"), plus the commit that updated this handover. It contains H005 (merge `2a48dbb`) and pushes cleanly.
+- **Branch `TASK-H006` at `1f07766`**, pushed and **not merged**. 194 tests pass on SQLite and PostgreSQL 16; ruff is clean.
+- **Other branches:** `TASK-H003`, `TASK-H004` and `TASK-H005` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, **H005**.
-  - **Next: H006** (CSV import). Not planned yet.
-- **Database schema head: revision `0006`** (`0006_credit_cards.py`): adds `category_groups.kind` and `categories.account_id` (unique, RESTRICT).
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005.
+  - **In progress: H006** (CSV and OFX import). Steps 1–4 are done; step 5 (Carel imports a real statement on CT 161) is pending. Details are in the "Work Completed" section of `TASKS/TASK-H006.md`.
+- **Database schema:**
+  - Head on `TASK-H006` is **`0007`** (`0007_imports.py`): `transactions.import_id` and the `import_mappings` table.
+  - Head on `main` is `0006`.
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **`main` (`2a48dbb`)**. App and database are healthy, and the database is at `0006`. Later commits that only touch this handover aren't deployed, and don't need to be.
+  - Runs **branch `TASK-H006` (`1f07766`)**, not `main`. App and database are healthy, and the database is at **`0007`**.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
-  - **Data after Carel's H003, H004 and H005 testing** (all deliberate):
+  - **Data after Carel's H003–H005 testing** (all deliberate). Nothing has been imported yet.
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", Groceries hidden, the Needs group deleted (its categories moved to Bills).
     - Accounts: Savings changed to type Other, and **Savings is closed**. A £1,800 transfer Savings → Current (transactions 46/47) emptied it first. Savings' starting balance (transaction 3) has the payee "Starting odd" from an edit test.
     - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current, £10 refund to Dining out.
     - Balances: Current £5,349.01, Savings £0.00 (closed), Mortgage −£181,450.00, Visa_Starling −£690.00.
-    - Ready to Assign: October £1,315.00, November and December **£815.00**.
-    - Transport shows −£80.90 of credit overspending in November. The Visa_Starling payment line has £109.10 available and £580.90 needed.
+    - Ready to Assign: October £1,315.00, November and December **£815.00**. Checked again after the H006 deploy.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
-  - **Backups** in `/opt/zerobase/backups/`. The latest is `zerobase-20261102-140509.sql.gz`, taken just before the H005 deploy (it has schema `0005` and no card).
+  - **Backups** in `/opt/zerobase/backups/`:
+    - The latest is `zerobase-20261107-155225.sql.gz`, taken just before the H006 deploy (schema `0006`, card included).
+    - The one before it is `zerobase-20261102-140509.sql.gz` (before H005, schema `0005`).
 
 ## Completed this session
 
 1. **TASK-H004 (accounts), DONE**, merged as `0dd177b` on 2026-11-02. Details are in its task file.
 2. **TASK-H005 (credit cards), DONE**, merged as `2a48dbb` on 2026-11-07. Plan, worked examples and details are in `TASKS/TASK-H005.md`. In short:
-   - **Maths:** `build_budget` fills a `Ledger` of plain sums, and the pure `compute_budget()` / `_roll_month()` do the maths. `tests/test_card_maths.py` holds the plan's worked examples.
-   - **Rules:** cash spending is funded first, then cards in account order. Funded card spending moves to the card's payment category. Unfunded card spending is credit overspending and doesn't reduce Ready to Assign. Starting debt doesn't touch Ready to Assign.
-   - **Protection:** payment categories can't be managed on `/categories` or chosen for a transaction. Renaming, closing or deleting the card handles them. The credit card type is fixed once the account is created.
-   - **Tests:** `tests/test_cards.py` and `test_0006_adds_card_links_and_a_user_still_deletes_on_postgres` in `tests/test_migrations.py`.
-3. **Carel tested H005 on CT 161**, with the database checked afterwards: starting debt, funded spending, credit overspending (including the amber pill and note), a payment, a refund and a rename. Not tried there, but covered by the automated tests: the server refusing a type change, refusing a payment category on a transaction, and closing or deleting a card.
-4. `/budget` with 5,000 transactions over 3 years and two cards takes about 70 ms on local PostgreSQL (measured 2026-11-02 with a throwaway script).
+   - `build_budget` fills a `Ledger`; the pure `compute_budget()` / `_roll_month()` do the maths.
+   - Cash is funded first, then cards in account order. Unfunded card spending is credit overspending and doesn't reduce Ready to Assign.
+   - Payment categories are protected from `/categories` and from transaction pickers.
+   - Carel tested it on CT 161, with the database checked after each step: starting debt, funded spending, credit overspending (amber pill and note), payment, refund and rename.
+3. **TASK-H006 (CSV and OFX import), steps 1–4.** The plan was agreed on 2026-11-07, with OFX added at Carel's request. It's in "Agreed plan" in `TASKS/TASK-H006.md`.
+   - **Parsing:** `src/zerobase/importer.py` is a pure module covering CSV (with a mapping), OFX 1.x/2.x and `classify()` (NEW / IMPORTED / MATCH / ERROR). Tested by 38 unit tests in `tests/test_importer.py`.
+   - **Web:** `src/zerobase/routers/imports.py` handles upload → map (CSV only) → preview → confirm. The pages are `import_upload.html`, `import_map.html`, `import_preview.html` and `_import.html`. Tested by 18 tests in `tests/test_import_web.py`, including the card-payment workflow.
+   - **Migration `0007`:** tested in `tests/test_migrations.py`.
+   - **Deploy:** CT 161 was backed up and runs the branch.
 
 ## Next steps
 
-1. **TASK-H006 (CSV import).** Read `TASKS/TASK-H006.md` and plan it with Carel before coding (the `task-planning` skill).
-   - Any delete path must delete or unlink a transfer's other leg itself.
-   - Decide how imported rows on a credit card are handled. A payment category can't be chosen for a transaction, and card payments must be transfers.
+1. **H006 step 5: Carel imports a real statement on CT 161.** Carel said they would get a bank download "when we do the work". Check the database after each step:
+   1. Import the file into Current; check the preview's dates, totals and signs.
+   2. Re-import it: everything should be "imported before".
+   3. Check that any matches against typed-in transactions are sensible.
+
+   Check that rows were added with `import_id` set and `category_id` NULL, that `import_mappings` has a row, and that Ready to Assign is unchanged.
+2. **If the real file doesn't parse,** or the guessed mapping is off: add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (decision 7).
+3. **Then mark H006 DONE.** Update the task file and the `TASKS.md` row in the same commit. Merge with `--no-ff` after `git pull --ff-only`, push, redeploy `main` to CT 161, and update this handover.
+4. **After that:** nothing is planned yet. The next H task is done, so pick from `TASKS/TASKS.md` with Carel, e.g. M005 (transaction paging) or the open items below.
 
 ## Open decisions
 
+- **QIF import:** only if Carel's bank offers QIF rather than OFX (H006 decision 7).
 - **Inline category picker on transfer legs:** the budget leg of a budget↔tracking transfer still offers "Uncategorised" in the list's inline picker. If chosen, the leg is just flagged as uncategorised. It's recorded in the task file; fix it only if Carel wants it.
 - **HTTPS.** The deployment is plain HTTP. Options are Home_Web_Games' proxy01 or the bundled Caddy. Not started; do it before real use, especially now that it's reachable over the VPN.
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
@@ -63,6 +77,14 @@ All verified on 2026-11-07.
 
 - **Task bookkeeping:** the task file is the source of truth. Any status change updates the task file **and** the `TASKS/TASKS.md` row in the same commit. One branch per task, named `TASK-XNNN`.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
+- **CT 161 is on a branch with migration `0007`.** Don't redeploy `main` there until H006 is merged: `main`'s app doesn't know revision `0007`. To go back without merging, restore `zerobase-20261107-155225.sql.gz`, and only with Carel's OK.
+- **Imports (H006):**
+  - **File text between steps:** it travels in a hidden form field. The routes read their own form through `import_form`, with a 4 MB field limit; Starlette's default is 1 MB, and decoded Windows-1252 text can be longer than the upload. Uploads are capped at 1 MB (`importer.MAX_BYTES`).
+  - **Import IDs:** `ofx:<FITID>` for OFX, `<date>:<amount>:<n>` for CSV. The likely-match rule also covers transactions imported in the other format.
+  - **Saved settings:** `import_mappings.settings` is JSON: `{"csv": {"mapping", "header"}, "ofx": {"account_number"}}`.
+  - **Deleting accounts:** a new path that deletes accounts must also delete its `ImportMapping`, because SQLite doesn't enforce the CASCADE.
+  - **Tests:** Jinja escapes `'` in *variables* as `&#39;`, but not in the template's own text. Assertions must match that.
+  - **`Row` and `Existing` have a field named `date`.** `importer.py` needs `from __future__ import annotations`, or the `date | None` annotation fails.
 - **Credit cards (H005):**
   - `build_budget()` must keep payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
   - Starting debt is a card transaction in the card's own payment category. It's debt, not activity.
@@ -95,4 +117,5 @@ All verified on 2026-11-07.
 - **Known gap, not fixed:** `HEAD /` returns 405.
 - **App port on CT 161:** the app is published on port 80, so checks from the CT against `127.0.0.1:8000` get connection refused.
 - **`TASKS/TASKS.md`:** its Quick Reference says to move finished tasks to the archive table, but H002–H005 are still marked DONE in the High Priority table. Tidy them together if Carel wants it.
-- **Commit attribution:** commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Commit attribution:** commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, plus the `Claude-Session:` line when the session gives one.
+- **Pronouns:** Carel's pronouns haven't been stated, so use "they" or the name in docs. A slip in the H006 plan was corrected.
