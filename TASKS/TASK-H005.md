@@ -1,12 +1,12 @@
 # TASK-H005: Credit card accounts
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-02
-**Completed**:
+**Completed**: 2026-11-07
 **Branch**: TASK-H005
 **Dependencies**: TASK-C001, TASK-H002
 
@@ -150,20 +150,22 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
 ## Implementation Plan
 
 ### Phase 1: Design spike
-- [ ] Write out the maths for funded/unfunded card spending per month, including rollover of the payment category and of credit overspending, with worked examples in this file
-- [ ] Confirm model with the user
+- [x] Write out the maths for funded/unfunded card spending per month, including rollover of the payment category and of credit overspending, with worked examples in this file
+- [x] Confirm model with the user
 
 ### Phase 2: Model
-- [ ] Migration: account kind, link from account to its payment category, system category flag
-- [ ] Extend `build_budget`; unit tests first
+- [x] Migration: account kind, link from account to its payment category, system category flag
+- [x] Extend `build_budget`; unit tests first
 
 ### Phase 3: UI and flows
-- [ ] Create card account flow, payment via transfer, display of credit overspending
-- [ ] End-to-end tests
+- [x] Create card account flow, payment via transfer, display of credit overspending
+- [x] End-to-end tests
 
 ---
 
 ## Work Completed
+
+Done 2026-11-07, merged to `main`. 137 tests pass on SQLite and PostgreSQL 16; ruff clean.
 
 - **Step 1 done (2026-11-02):** the budget maths is now a pure function. `build_budget` fills a `Ledger` (plain sums from the database), and `compute_budget(ledger, category_ids, month)` returns each category's `Figures` and Ready to Assign. Card funding lives in `_roll_month`. Examples 1–9 pass in `tests/test_card_maths.py`, and the existing budget tests are unchanged (118 pass).
   - For step 4: `build_budget` must leave payment categories out of `category_ids`. They come from `ledger.payment_categories`, and a category passed both ways would be rolled twice.
@@ -186,7 +188,14 @@ All computed on read in `build_budget`; nothing derived is stored. For each cate
   - **Credit overspending colour:** an Available that is overspent only on credit gets a `credit` (amber) pill; any cash overspending keeps it red, as in YNAB.
   - **Notes in words:** each line can show "£X more needed to pay off this card" or "£X of card spending not covered", so the meaning doesn't rely on colour. The notes are also in the HTMX update after assigning.
   - **Code:** `available()` and `line_note()` macros in `_macros.html`; `--credit-*` colour tokens with dark-mode values.
-- **Step 7 (in progress):** README updated; the test totals are in the "Current state" of the handover.
+- **Step 7 done (2026-11-07):** README updated. Backed up CT 161 (`zerobase-20261102-140509.sql.gz`, schema `0005`) and deployed. Carel tested on CT 161, with the database checked afterwards:
+  - Added the card with a -£500 opening balance: all of it needed on the payment line; Ready to Assign stayed £815.00.
+  - £30 on Dining out, fully funded: the money moved to the payment category.
+  - £200 on Transport with £119.10 available: £80.90 of credit overspending, shown with the amber pill and note; December's Ready to Assign wasn't reduced.
+  - £30 transfer from Current to the card: the payment category and the debt both fell by £30.
+  - £10 refund to Dining out: Dining out +£10, payment category -£10, debt -£10, so the amount needed stayed £580.90.
+  - Renamed the card: the payment category followed.
+  - Not tried there, but covered by the automated tests: the server refusing a type change (the edit page only offers "Credit card", so it can't be attempted in the UI), refusing a payment category on a transaction, and closing or deleting a card.
 - **Known edges, left alone:**
   - If the starting-debt transaction is edited to a positive amount, it stays in the payment category: the card shows as in credit, but the money doesn't reach Ready to Assign.
   - A transfer from a card to a budget account (a cash advance) counts as reversing a payment.
@@ -240,4 +249,4 @@ Mostly pure unit tests on the maths with hand-checked expected values, plus web 
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-07 by Claude*
