@@ -14,7 +14,8 @@
       <td>{{ kinds.get(account.kind, "Other") }}</td>
       <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
       <td class="r">{{ balance|money }}</td>
-      <td class="row-actions"><a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
+      <td class="row-actions"><a href="/accounts/{{ account.id }}/import" aria-label="Import into {{ account.name }}">Import</a>
+        <a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
     </tr>
     {% endfor %}
   </tbody>

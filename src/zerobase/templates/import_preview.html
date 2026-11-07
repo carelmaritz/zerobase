@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_import.html" import carried %}
+{% block title %}Import into {{ account.name }}{% endblock %}
+{% block content %}
+<h1>Import into {{ account.name }}: preview</h1>
+{% if wrong_account %}
+<p class="error" role="alert">This file is for account {{ account_number }}, but the last OFX import into {{ account.name }} was for {{ saved_number }}.
+  Check you chose the right account before importing.</p>
+{% endif %}
+
+<p class="notice" role="status">
+  {{ counts.new }} new{% if counts.match %}, {{ counts.match }} matching transactions you already entered{% endif %}{% if counts.imported %}, {{ counts.imported }} imported before{% endif %}{% if counts.error %}, {{ counts.error }} that can't be read{% endif %}.
+  {% if first %}Dates {{ first.isoformat() }} to {{ last.isoformat() }}.{% endif %}
+  New rows: {{ (-new_out)|money }} out, {{ new_in|money }} in.
+</p>
+
+<form method="post" action="/accounts/{{ account.id }}/import/confirm" enctype="multipart/form-data">
+  {{ carried(content, mapping) }}
+  {% if verdicts %}
+  <div class="scroll">
+  <table class="list">
+    <thead>
+      <tr><th scope="col">Line</th><th scope="col">Date</th><th scope="col">Payee</th><th scope="col">Memo</th>
+        <th scope="col" class="r">Outflow</th><th scope="col" class="r">Inflow</th><th scope="col">Import?</th></tr>
+    </thead>
+    <tbody>
+      {% for v in verdicts %}
+      {% set r = v.row %}
+      <tr>
+        <td>{{ r.line }}</td>
+        {% if v.status == "error" %}
+        <td colspan="5" class="neg-text">{{ r.error }}</td>
+        <td>Can't be imported</td>
+        {% else %}
+        <td>{{ r.date.isoformat() }}</td>
+        <td>{{ r.payee }}</td>
+        <td>{{ r.memo }}</td>
+        <td class="r">{% if r.amount < 0 %}{{ (-r.amount)|money }}{% endif %}</td>
+        <td class="r">{% if r.amount > 0 %}{{ r.amount|money }}{% endif %}</td>
+        <td>
+          {% if v.status == "new" %}
+          <label class="check"><input type="checkbox" name="add" value="{{ r.line }}" checked> New</label>
+          {% elif v.status == "match" %}
+          {% set m = matches[v.match_id] %}
+          Matches {{ m.date.isoformat() }} {{ m.payee or "(no payee)" }}
+          <label class="check"><input type="checkbox" name="add" value="{{ r.line }}"> Import as new instead</label>
+          {% else %}
+          <span class="muted">Imported before</span>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">The file has no transactions.</p>
+  {% endif %}
+  <p class="actions">
+    <button type="submit" class="primary">Import</button>
+    {% if mapping %}<button type="submit" formaction="/accounts/{{ account.id }}/import/map">Change the columns</button>{% endif %}
+    <a href="/accounts/{{ account.id }}/import">Cancel</a>
+  </p>
+</form>
+<p class="muted">A matched transaction is kept as you entered it and marked as imported, so later imports skip it too.</p>
+{% endblock %}

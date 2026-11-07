@@ -177,6 +177,20 @@ The rules below are for CSV. OFX has its own subsection after them.
   - **Shared:** `decode` reads UTF-8 (BOM or none), falling back to Windows-1252. `is_ofx` tells the formats apart.
   - **`classify(rows, existing)`** gives each row a verdict: NEW, IMPORTED, MATCH (with the existing transaction's ID) or ERROR.
   - **Fixtures** are still made up. They should be checked against Carel's real download when it arrives.
+- **Step 3 done (2026-11-07):** migration `0007` (`0007_imports.py`) adds:
+  - `transactions.import_id`: `String(255)`, with `uq_transactions_account_import_id` on (account, import ID).
+  - The `import_mappings` table: one row per account. `settings` is JSON holding `{"csv": {"mapping", "header"}, "ofx": {"account_number"}}`; each format keeps its own entry, so an account can use both.
+
+  Tested by `test_0007_import_ids_are_unique_per_account_and_downgrade_keeps_transactions`, on SQLite and PostgreSQL.
+- **Step 4 done (2026-11-07):** `routers/imports.py` and the templates `import_upload.html`, `import_map.html`, `import_preview.html` and `_import.html`. There are links from the Accounts list ("Import") and the account's page.
+  - **Forms:** the routes read their own form (`import_form`) with a 4 MB field limit, because the decoded text can be longer than the 1 MB upload. An upload clearly over 1 MB is refused from its `Content-Length` before it's read.
+  - **Errors:** a refused mapping is shown again with the choices made, not the guess. Confirming the same rows twice at once (say, two tabs) gives a message instead of an error page.
+  - **Confirm:** the `add` field lists the lines to add. A matched row left unticked stamps its ID on the existing transaction, but only if that transaction has no import ID yet.
+  - **Account deletion:** deleting an empty account deletes its import settings.
+  - **Tests:** `tests/test_import_web.py` (18), including the card-payment workflow from decision 3. 194 tests pass on SQLite and PostgreSQL 16.
+- **Known edges, left alone:**
+  - If a bank splits one day across two statements, and the same purchase (same amount) is on both halves, the second file's copy gets `:1` and is taken as already imported. This is YNAB's behaviour too.
+  - A pending transaction that later changes amount or date gets a new ID in CSV files.
 
 ---
 

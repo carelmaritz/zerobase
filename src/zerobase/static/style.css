@@ -160,3 +160,8 @@ input.amt { width: 7.5rem; text-align: right; font-variant-numeric: tabular-nums
   .num.pill { min-width: 0; }
   input.amt { width: 5.5rem; }
 }
+
+/* Statement import (TASK-H006) */
+.scroll { overflow-x: auto; }
+.neg-text { color: var(--neg-fg); }
+.actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
