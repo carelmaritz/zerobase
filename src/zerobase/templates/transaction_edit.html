@@ -9,8 +9,25 @@
   <form method="post" action="/transactions/{{ transaction.id }}/edit" class="grid-form">
     {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     {{ transaction_fields(accounts, categories, inflow, values) }}
+    <label>Status
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s }}"{% if s == values.status %} selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if locked %}
+    <p class="notice">This transaction is reconciled{% if transaction.status != "reconciled" %} on the other side of the transfer{% endif %}:
+      it matched the bank's balance. Changing it will make the account disagree with that reconciliation.</p>
+    <label class="check"><input type="checkbox" name="confirm_reconciled" value="1"> Yes, change a reconciled transaction</label>
+    {% endif %}
     <button type="submit" class="primary">Save</button>
   </form>
+  {% if locked %}
+  <form method="post" action="/transactions/{{ transaction.id }}/delete" class="danger-zone">
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+    <label class="check"><input type="checkbox" name="confirm_reconciled" value="1" required> Yes, delete a reconciled transaction</label>
+    <button type="submit" class="danger">Delete</button>
+  </form>
+  {% endif %}
   <p class="muted">Category is ignored for tracking accounts. Changes to a transfer apply to both of its sides.
     <a href="{{ back_url }}">Cancel</a></p>
 </section>

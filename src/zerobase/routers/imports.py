@@ -20,7 +20,7 @@ from starlette.datastructures import FormData, UploadFile
 from .. import importer
 from ..deps import current_user, get_db, owned_account
 from ..importer import DATE_FORMATS, MATCH, MAX_BYTES, NEW, Existing, Mapping, Statement
-from ..models import Account, ImportMapping, Transaction, User
+from ..models import CLEARED, UNCLEARED, Account, ImportMapping, Transaction, User
 from ..templating import render
 
 router = APIRouter()
@@ -354,6 +354,7 @@ def confirm(
                     memo=row.memo,
                     amount=row.amount,
                     import_id=row.import_id,
+                    status=CLEARED,  # the bank says it happened
                 )
             )
             added += 1
@@ -361,6 +362,8 @@ def confirm(
             existing = db.get(Transaction, verdict.match_id)
             if existing.import_id is None:
                 existing.import_id = row.import_id
+            if existing.status == UNCLEARED:  # a reconciled one stays reconciled
+                existing.status = CLEARED
             matched += 1
     skipped = len(statement.rows) - added - matched
 

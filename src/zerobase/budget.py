@@ -35,7 +35,15 @@ from datetime import date
 from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
-from .models import CREDIT_CARD, Account, Assignment, Category, CategoryGroup, Transaction
+from .models import (
+    CREDIT_CARD,
+    UNCLEARED,
+    Account,
+    Assignment,
+    Category,
+    CategoryGroup,
+    Transaction,
+)
 
 
 def month_start(d: date) -> date:
@@ -434,6 +442,21 @@ def account_balances(db: Session, user_id: int) -> list[tuple[Account, int]]:
         ).all()
     )
     return [(a, int(totals.get(a.id, 0))) for a in accounts]
+
+
+def cleared_balances(db: Session, user_id: int) -> dict[int, int]:
+    """Per account, the sum of cleared and reconciled transactions (what the bank shows).
+
+    The uncleared part is the account's balance minus this.
+    """
+    return {
+        account_id: int(total)
+        for account_id, total in db.execute(
+            select(Transaction.account_id, func.sum(Transaction.amount))
+            .where(Transaction.user_id == user_id, Transaction.status != UNCLEARED)
+            .group_by(Transaction.account_id)
+        )
+    }
 
 
 DEFAULT_CATEGORIES: dict[str, list[str]] = {

@@ -90,7 +90,15 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Steps 1–6 done (2026-11-08):**
+  - **Migration `0008`** (`0008_reconciliation.py`): `transactions.status` (`uncleared` by default, constants in `models.py`) and `accounts.reconciled_on`.
+  - **Toggle:** `POST /transactions/{id}/cleared`. With htmx it returns the cell (`_status_cell.html`, macro `status_cell` in `_macros.html`); without, it redirects to the `back` list. A reconciled row gives 400.
+  - **Balances:** `budget.cleared_balances()` (cleared + reconciled); uncleared is the balance minus that. Shown on `/accounts` and on the list when filtered to one account.
+  - **Reconcile:** `routers/reconcile.py` and `reconcile.html`. The difference is worked out again on every post, so a double post adds one adjustment. The adjustment is dated today, reconciled, and in Inflow on a budget account (cards included) or uncategorised on a tracking account.
+  - **Lock:** `_locked()` in `routers/transactions.py` covers either side of a transfer. Edit and delete need `confirm_reconciled=1`; otherwise the edit page comes back with the warning (400). The page CSP allows no inline JS, so a reconciled row has no Delete on the list: it's on the edit page, behind a required tick. The edit page has a Status field (the manual undo). The inline category picker needs no tick.
+  - **Import:** added rows are `cleared`; a matched typed-in row goes from uncleared to cleared (reconciled stays).
+  - **Also (Claude's call, like YNAB):** a new account's starting balance is created `cleared`. Existing ones stay uncleared after the migration.
+  - **Tests:** `tests/test_reconcile.py` (13), the 0008 test in `tests/test_migrations.py`, and status checks in `tests/test_import_web.py`. 220 tests pass on SQLite and PostgreSQL 16.
 
 ---
 

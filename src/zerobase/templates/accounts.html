@@ -6,15 +6,20 @@
 
 {% if accounts %}
 <table class="list">
-  <thead><tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Counts toward</th><th scope="col" class="r">Balance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th scope="col">Account</th><th scope="col">Type</th><th scope="col">Counts toward</th>
+    <th scope="col" class="r">Cleared</th><th scope="col" class="r">Uncleared</th><th scope="col" class="r">Balance</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
     {% for account, balance in accounts %}
     <tr>
       <th scope="row"><a href="/transactions?account_id={{ account.id }}">{{ account.name }}</a></th>
       <td>{{ kinds.get(account.kind, "Other") }}</td>
       <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
+      {% set done = cleared.get(account.id, 0) %}
+      <td class="r">{{ done|money }}</td>
+      <td class="r">{{ (balance - done)|money }}</td>
       <td class="r">{{ balance|money }}</td>
-      <td class="row-actions"><a href="/accounts/{{ account.id }}/import" aria-label="Import into {{ account.name }}">Import</a>
+      <td class="row-actions"><a href="/accounts/{{ account.id }}/reconcile" aria-label="Reconcile {{ account.name }}">Reconcile</a>
+        <a href="/accounts/{{ account.id }}/import" aria-label="Import into {{ account.name }}">Import</a>
         <a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
     </tr>
     {% endfor %}

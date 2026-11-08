@@ -165,3 +165,9 @@ input.amt { width: 7.5rem; text-align: right; font-variant-numeric: tabular-nums
 .scroll { overflow-x: auto; }
 .neg-text { color: var(--neg-fg); }
 .actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+
+/* Cleared status (TASK-M006): a grey C when uncleared, a green pill when cleared. */
+td.status { text-align: center; white-space: nowrap; }
+button.link.cleared-toggle { text-decoration: none; font-weight: 600; border-radius: 999px; padding: 0 0.4em; }
+button.link.cleared-toggle.on { color: var(--pos-fg); background: var(--pos-bg); }
+.danger-zone { margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }

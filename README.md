@@ -24,6 +24,8 @@ The arithmetic lives in [`src/zerobase/budget.py`](src/zerobase/budget.py) and i
 - Transfers between accounts, kept as two linked sides that are edited and deleted together
 - Credit cards, the YNAB way: spending from a funded category sets that money aside in the card's payment category, card spending a category can't cover shows as credit overspending (it adds to the debt instead of reducing Ready to Assign), and a transfer to the card pays it
 - Statement import from CSV (choose the columns once per account) or OFX (often offered as "Microsoft Money"), with a preview. Re-importing an overlapping statement adds nothing twice, and rows matching transactions you typed in are matched, not doubled
+- Transaction list with paging and filters (account, category or uncategorised, dates, payee/memo search) that stay put as you edit
+- Cleared status and reconciliation: tick transactions off against the bank, see cleared and uncleared balances, and reconcile an account against the bank's balance (with an adjustment for any difference, as in YNAB). Imported rows start cleared
 - Category management: rename, reorder, move between groups, hide, and delete by merging into another category (with a preview of any change to Ready to Assign)
 - Several users on one install, each with fully separate data
 
@@ -138,6 +140,8 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 - [x] Transfers between accounts
 - [x] Credit card accounts
 - [x] CSV and OFX import
+- [x] Transaction paging and filters
+- [x] Cleared status and reconciliation
 - [x] Rename, reorder, hide and delete categories
 - [x] Rename, close and delete accounts
 - [x] Database migrations (Alembic)
