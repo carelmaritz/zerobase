@@ -94,7 +94,8 @@ def test_hiding_keeps_the_money_and_says_where_it_went(client, db, budget):
     assert "£700.00" in page
     groups, hidden_section = page.split("Hidden categories (1)")
     assert "Groceries" not in groups and "£250.00" in hidden_section
-    assert f'value="{groceries}"' not in client.get("/transactions").text.split("<table")[0]
+    add_form = client.get("/transactions").text.split('<form method="get"')[0]
+    assert f'value="{groceries}"' not in add_form
 
     # A transaction already in the hidden category keeps it when edited.
     tesco = db.scalar(select(Transaction.id).where(Transaction.payee == "Tesco"))

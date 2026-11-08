@@ -7,7 +7,7 @@
 
 <section class="card">
   <form method="post" action="/transactions/{{ transaction.id }}/edit" class="grid-form">
-    {% if return_to is not none %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     {{ transaction_fields(accounts, categories, inflow, values) }}
     <button type="submit" class="primary">Save</button>
   </form>

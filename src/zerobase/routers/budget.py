@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -10,6 +10,7 @@ from ..deps import current_user, get_db, owned_category
 from ..models import Assignment, Category, CategoryGroup, User
 from ..money import parse_money
 from ..templating import render
+from ..transaction_list import UNCATEGORISED, ListFilters
 
 router = APIRouter()
 
@@ -45,6 +46,10 @@ def _page(
         "month_label": f"{selected:%B %Y}",
         "prev_month": f"{add_months(selected, -1):%Y-%m}",
         "next_month": f"{add_months(selected, 1):%Y-%m}",
+        # The budget counts uncategorised transactions up to the month's end, so the link does too.
+        "uncategorised_url": ListFilters(
+            category=UNCATEGORISED, end=add_months(selected, 1) - timedelta(days=1)
+        ).url(),
         "error": error,
     }
     return render(request, "budget.html", context, status_code=status)

@@ -80,7 +80,13 @@ Agreed with Carel: Newer/Older keyset paging, 100 rows a page. No migration: `ix
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Steps 1–5 done (2026-11-08):**
+  - **`src/zerobase/transaction_list.py`:** `ListFilters` (parsed from the query string, or from a form's `back` field; values that don't parse are dropped), `filtered()` (the filters as one query) and `load_page()` (keyset paging, 100 a page). An unknown but well-formed ID just matches nothing.
+  - **Newer from page 2:** when the newer rows don't fill a page, the real first page is shown, so the top page is always full.
+  - **`routers/transactions.py`:** the list reads its filters with `ListFilters.from_params`. Add, edit, delete and the no-JS category save carry a hidden `back` field and redirect to `ListFilters.from_back(back).url()`, which is rebuilt from known parameters only. `return_to` is gone.
+  - **Templates:** a GET filter bar replaces the account links. It offers closed accounts and hidden categories, but not card payment categories. Paging uses Newer/Older links.
+  - **Budget:** "Categorise them" links to `?category=none&to=<last day of the month>`.
+  - **Tests:** `tests/test_transaction_list.py` (9): 451 rows paged both ways, each filter alone and combined, literal `%`/`_`/`\\`, uncategorised count equal to the budget's, forms returning to the same filtered page, `back` can't leave `/transactions`, bad parameters, other users' rows. Two older tests were updated for `back`. 204 tests pass on SQLite and PostgreSQL 16.
 
 ---
 
