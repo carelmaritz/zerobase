@@ -14,7 +14,7 @@ from ..templating import render
 router = APIRouter()
 
 ACCOUNT_KINDS = {
-    "checking": "Checking",
+    "checking": "Current account",  # the stored key stays "checking"; UK name shown
     "savings": "Savings",
     "cash": "Cash",
     "other": "Other",
