@@ -1,12 +1,12 @@
 # TASK-H006: CSV and OFX import
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-07
-**Completed**:
+**Completed**: 2026-11-08
 **Branch**: TASK-H006
 **Dependencies**: TASK-C001
 
@@ -189,6 +189,7 @@ The rules below are for CSV. OFX has its own subsection after them.
   - **Account deletion:** deleting an empty account deletes its import settings.
   - **Tests:** `tests/test_import_web.py` (18), including the card-payment workflow from decision 3. 194 tests pass on SQLite and PostgreSQL 16.
 - **Mapping guess fix (2026-11-08):** `guess_mapping()` now looks for a money out/in pair before a single amount column. Before, Lloyds and Halifax headers (`Debit Amount`, `Credit Amount`) were guessed as one signed amount column (`Debit Amount`), because both contain the word "amount". Tested in `test_guess_mapping_reads_debit_and_credit_amount_as_a_pair`. 195 tests pass on SQLite.
+- **Step 5 done (2026-11-08):** Carel imported a made-up bank-style CSV (18 rows, Paid out/Paid in, newest first) into Current on CT 161, with the database checked afterwards. The mapping was guessed correctly. 8 rows matched typed-in transactions (including 3 transfer legs and 3 dated 2 days later) and were stamped with their import ID, their date, payee and category unchanged. 10 were added uncategorised, including two identical same-day rows (`:1`, `:2`). Ready to Assign was unchanged, and a re-import showed everything as "imported before" and added nothing. A real bank download wasn't tried; Carel chose to close the task and treat any real-file problem as a follow-up. 195 tests pass on SQLite and PostgreSQL 16.
 - **Known edges, left alone:**
   - If a bank splits one day across two statements, and the same purchase (same amount) is on both halves, the second file's copy gets `:1` and is taken as already imported. This is YNAB's behaviour too.
   - A pending transaction that later changes amount or date gets a new ID in CSV files.
