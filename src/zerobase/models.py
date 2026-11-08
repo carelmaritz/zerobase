@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
+    Text,
     UniqueConstraint,
     false,
 )
@@ -103,7 +104,11 @@ class Category(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
-    __table_args__ = (Index("ix_transactions_user_date", "user_id", "date"),)
+    __table_args__ = (
+        Index("ix_transactions_user_date", "user_id", "date"),
+        # Imported rows carry an ID from the statement, so re-importing adds nothing twice.
+        UniqueConstraint("account_id", "import_id", name="uq_transactions_account_import_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -125,6 +130,9 @@ class Transaction(Base):
     transfer_id: Mapped[int | None] = mapped_column(
         ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Set on imported transactions (and on hand-entered ones an import matched): see
+    # ``importer``. NULL for anything typed in and never matched.
+    import_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     account: Mapped[Account] = relationship()
     category: Mapped[Category | None] = relationship()
@@ -155,3 +163,22 @@ class Assignment(Base):
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"))
     month: Mapped[date] = mapped_column(Date)
     amount: Mapped[int] = mapped_column(BigInteger)
+
+
+class ImportMapping(Base):
+    """An account's import settings from last time, so the next import needs no mapping.
+
+    ``settings`` is JSON: the CSV ``mapping`` and ``header``, or the OFX
+    ``account_number``. CASCADE: an account deleted with no transactions takes it along
+    (the app also deletes it, as SQLite doesn't enforce foreign keys here).
+    """
+
+    __tablename__ = "import_mappings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), unique=True
+    )
+    settings: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

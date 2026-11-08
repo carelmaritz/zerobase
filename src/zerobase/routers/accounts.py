@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..budget import account_balances, add_payment_category, category_in_use, inflow_category
 from ..deps import current_user, get_db, owned_account
-from ..models import CREDIT_CARD, Account, Category, Transaction, User
+from ..models import CREDIT_CARD, Account, Category, ImportMapping, Transaction, User
 from ..money import parse_money
 from ..templating import render
 
@@ -220,7 +220,10 @@ def delete_account(
             )
             return _edit_page(request, db, user, account, error, 400)
         db.delete(payment)
-        db.flush()  # the category refers to the account
+    # Its saved import settings go too (SQLite doesn't enforce the CASCADE here).
+    for saved in db.scalars(select(ImportMapping).where(ImportMapping.account_id == account.id)):
+        db.delete(saved)
+    db.flush()  # the category and settings refer to the account
     db.delete(account)
     db.commit()
     return _back()

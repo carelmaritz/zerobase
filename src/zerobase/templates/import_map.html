@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_import.html" import column_select %}
+{% block title %}Import into {{ account.name }}{% endblock %}
+{% block content %}
+<h1>Import into {{ account.name }}: columns</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if note %}<p class="notice" role="status">{{ note }}</p>{% endif %}
+
+<section class="card">
+  <h2>The start of the file</h2>
+  <div class="scroll">
+  <table class="list">
+    <tbody>
+      {% for row in sample %}
+      <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Which column is which?</h2>
+  <form method="post" action="/accounts/{{ account.id }}/import/preview" enctype="multipart/form-data" class="grid-form">
+    <input type="hidden" name="content" value="{{ content }}">
+    {{ column_select("date_col", "Date", columns, mapping.date_col, optional=False) }}
+    <label>Date format
+      <select name="date_format">
+        {% for key in date_formats %}<option value="{{ key }}"{% if key == mapping.date_format %} selected{% endif %}>{{ key }}</option>{% endfor %}
+      </select>
+    </label>
+    {{ column_select("payee_col", "Payee", columns, mapping.payee_col) }}
+    {{ column_select("memo_col", "Memo", columns, mapping.memo_col) }}
+    {{ column_select("amount_col", "Amount (one signed column)", columns, mapping.amount_col) }}
+    {{ column_select("out_col", "Or: money out", columns, mapping.out_col) }}
+    {{ column_select("in_col", "And: money in", columns, mapping.in_col) }}
+    <label>Header rows to skip <input type="number" name="header_rows" min="0" max="20" value="{{ mapping.header_rows }}"></label>
+    <label class="check"><input type="checkbox" name="flip_sign" value="1"{% if mapping.flip_sign %} checked{% endif %}> Flip the sign
+      <small class="muted">(if this bank shows spending as positive numbers)</small></label>
+    <button type="submit" class="primary">Preview</button>
+  </form>
+  <p class="muted">Choose either one amount column, or a money out and a money in column. These choices are remembered for {{ account.name }}.</p>
+</section>
+<p><a href="/accounts/{{ account.id }}/import">Start again</a></p>
+{% endblock %}

@@ -1,0 +1,20 @@
+{# Shared by the import steps. The file's text rides along in a hidden field. #}
+{% macro carried(content, mapping) -%}
+<input type="hidden" name="content" value="{{ content }}">
+{%- if mapping %}
+{%- for name in ("date_col", "payee_col", "memo_col", "amount_col", "out_col", "in_col", "header_rows") %}
+<input type="hidden" name="{{ name }}" value="{{ '' if mapping[name] is none else mapping[name] }}">
+{%- endfor %}
+<input type="hidden" name="date_format" value="{{ mapping.date_format }}">
+{%- if mapping.flip_sign %}<input type="hidden" name="flip_sign" value="1">{% endif %}
+{%- endif %}
+{%- endmacro %}
+
+{% macro column_select(name, label, columns, selected, optional=True) -%}
+<label>{{ label }}
+  <select name="{{ name }}">
+    {% if optional %}<option value=""{% if selected is none %} selected{% endif %}>(not used)</option>{% endif %}
+    {% for index, title in columns %}<option value="{{ index }}"{% if index == selected %} selected{% endif %}>{{ title }}</option>{% endfor %}
+  </select>
+</label>
+{%- endmacro %}

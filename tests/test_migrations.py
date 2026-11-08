@@ -8,6 +8,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from zerobase.db import Base, make_engine
 from zerobase.migrate import (
@@ -234,3 +235,46 @@ def test_0006_adds_card_links_and_a_user_still_deletes_on_postgres(engine):
         command.downgrade(alembic_config(connection), "0005")
     assert "account_id" not in {c["name"] for c in inspect(engine).get_columns("categories")}
     assert "kind" not in {c["name"] for c in inspect(engine).get_columns("category_groups")}
+
+
+def test_0007_import_ids_are_unique_per_account_and_downgrade_keeps_transactions(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0006")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (user_id, name, kind, on_budget, closed) "
+                "SELECT id, name, 'checking', :t, :f FROM users, "
+                "(SELECT 'A' AS name UNION SELECT 'B') AS names"
+            ),
+            {"t": True, "f": False},
+        )
+
+    upgrade_to_head(engine)
+    insert = text(
+        "INSERT INTO transactions (user_id, account_id, date, payee, memo, amount, import_id) "
+        "SELECT user_id, id, '2026-11-01', '', '', -300, :import_id FROM accounts"
+    )
+    with engine.begin() as connection:
+        connection.execute(insert, {"import_id": None})  # typed in: many NULLs are fine
+        connection.execute(insert, {"import_id": None})
+        connection.execute(insert, {"import_id": "2026-11-01:-300:1"})  # same ID, two accounts
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(insert, {"import_id": "2026-11-01:-300:1"})
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO import_mappings (user_id, account_id, settings, updated_at) "
+                "SELECT user_id, id, '{}', '2026-11-07' FROM accounts"
+            )
+        )
+        command.downgrade(alembic_config(connection), "0006")
+        assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 6
+    assert "import_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "import_mappings" not in app_tables(engine)

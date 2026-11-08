@@ -1,12 +1,12 @@
 # TASK-H006: CSV and OFX import
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: H - High
 **Effort**: L - 1-2 weeks
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-07
-**Completed**:
+**Completed**: 2026-11-08
 **Branch**: TASK-H006
 **Dependencies**: TASK-C001
 
@@ -61,7 +61,7 @@ Manual entry is the only way to record transactions today. Every UK bank offers 
 
 ## Agreed plan (2026-11-07)
 
-Approved by Carel on 2026-11-07, with OFX (Microsoft Money format) added at his request. He'll provide a real bank download for the fixtures when the work reaches the parsers; that also settles whether QIF is needed.
+Approved by Carel on 2026-11-07, with OFX (Microsoft Money format) added at Carel's request. Carel will provide a real bank download for the fixtures when the work reaches the parsers; that also settles whether QIF is needed.
 
 ### Decisions
 
@@ -171,7 +171,28 @@ The rules below are for CSV. OFX has its own subsection after them.
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Steps 1, 1b and 2 done (2026-11-07):** `src/zerobase/importer.py`, a pure module (no database or web), tested by 38 unit tests in `tests/test_importer.py`.
+  - **CSV:** `read_csv`, `guess_mapping`, `guess_date_format` and `parse_csv(text, Mapping)`. The delimiter is whichever of `,`, `;` or tab the first line uses most. `Mapping.problem()` says why a mapping can't be used.
+  - **OFX:** `parse_ofx` reads 1.x SGML and 2.x XML.
+  - **Shared:** `decode` reads UTF-8 (BOM or none), falling back to Windows-1252. `is_ofx` tells the formats apart.
+  - **`classify(rows, existing)`** gives each row a verdict: NEW, IMPORTED, MATCH (with the existing transaction's ID) or ERROR.
+  - **Fixtures** are still made up. They should be checked against Carel's real download when it arrives.
+- **Step 3 done (2026-11-07):** migration `0007` (`0007_imports.py`) adds:
+  - `transactions.import_id`: `String(255)`, with `uq_transactions_account_import_id` on (account, import ID).
+  - The `import_mappings` table: one row per account. `settings` is JSON holding `{"csv": {"mapping", "header"}, "ofx": {"account_number"}}`; each format keeps its own entry, so an account can use both.
+
+  Tested by `test_0007_import_ids_are_unique_per_account_and_downgrade_keeps_transactions`, on SQLite and PostgreSQL.
+- **Step 4 done (2026-11-07):** `routers/imports.py` and the templates `import_upload.html`, `import_map.html`, `import_preview.html` and `_import.html`. There are links from the Accounts list ("Import") and the account's page.
+  - **Forms:** the routes read their own form (`import_form`) with a 4 MB field limit, because the decoded text can be longer than the 1 MB upload. An upload clearly over 1 MB is refused from its `Content-Length` before it's read.
+  - **Errors:** a refused mapping is shown again with the choices made, not the guess. Confirming the same rows twice at once (say, two tabs) gives a message instead of an error page.
+  - **Confirm:** the `add` field lists the lines to add. A matched row left unticked stamps its ID on the existing transaction, but only if that transaction has no import ID yet.
+  - **Account deletion:** deleting an empty account deletes its import settings.
+  - **Tests:** `tests/test_import_web.py` (18), including the card-payment workflow from decision 3. 194 tests pass on SQLite and PostgreSQL 16.
+- **Mapping guess fix (2026-11-08):** `guess_mapping()` now looks for a money out/in pair before a single amount column. Before, Lloyds and Halifax headers (`Debit Amount`, `Credit Amount`) were guessed as one signed amount column (`Debit Amount`), because both contain the word "amount". Tested in `test_guess_mapping_reads_debit_and_credit_amount_as_a_pair`. 195 tests pass on SQLite.
+- **Step 5 done (2026-11-08):** Carel imported a made-up bank-style CSV (18 rows, Paid out/Paid in, newest first) into Current on CT 161, with the database checked afterwards. The mapping was guessed correctly. 8 rows matched typed-in transactions (including 3 transfer legs and 3 dated 2 days later) and were stamped with their import ID, their date, payee and category unchanged. 10 were added uncategorised, including two identical same-day rows (`:1`, `:2`). Ready to Assign was unchanged, and a re-import showed everything as "imported before" and added nothing. A real bank download wasn't tried; Carel chose to close the task and treat any real-file problem as a follow-up. 195 tests pass on SQLite and PostgreSQL 16.
+- **Known edges, left alone:**
+  - If a bank splits one day across two statements, and the same purchase (same amount) is on both halves, the second file's copy gets `:1` and is taken as already imported. This is YNAB's behaviour too.
+  - A pending transaction that later changes amount or date gets a new ID in CSV files.
 
 ---
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Import into {{ account.name }}{% endblock %}
+{% block content %}
+<h1>Import into {{ account.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if done %}
+<p class="notice" role="status">Imported {{ done.added }} transaction{{ "" if done.added == 1 else "s" }}{% if done.matched %},
+  matched {{ done.matched }} you had already entered{% endif %}{% if done.skipped %}, and left out {{ done.skipped }}{% endif %}.
+  <a href="/transactions?account_id={{ account.id }}">View {{ account.name }}'s transactions</a>.</p>
+{% endif %}
+
+{% if not account.closed %}
+<section class="card">
+  <h2>Upload a statement</h2>
+  <form method="post" action="/accounts/{{ account.id }}/import" enctype="multipart/form-data" class="grid-form">
+    <label>File <input type="file" name="file" accept=".csv,.ofx,.qfx,text/csv" required></label>
+    <button type="submit" class="primary">Next</button>
+  </form>
+  <p class="muted">A CSV file, or OFX (often offered as "Microsoft Money"), up to {{ max_mb }} MB.
+    Nothing is saved until you've checked the preview. Rows imported before are skipped, so overlapping statements are fine.
+    Imported transactions start uncategorised.</p>
+</section>
+{% endif %}
+<p><a href="/accounts/{{ account.id }}/edit">Back to {{ account.name }}</a></p>
+{% endblock %}
