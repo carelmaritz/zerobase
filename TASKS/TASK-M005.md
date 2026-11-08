@@ -1,12 +1,12 @@
 # TASK-M005: Transaction list paging and search
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: S - 1-2 days
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-08
-**Completed**:
+**Completed**: 2026-11-08
 **Branch**: TASK-M005
 **Dependencies**: None
 
@@ -32,10 +32,10 @@ Make every transaction reachable from the transactions page, and let the user fi
 - Keep `account_id` filter behaviour and the add-transaction form working.
 
 ### Success Criteria
-- [ ] All transactions reachable via paging
-- [ ] Each filter works alone and combined
-- [ ] `%` and `_` in search text are treated literally
-- [ ] Filters persist after adding, editing or deleting a transaction
+- [x] All transactions reachable via paging
+- [x] Each filter works alone and combined
+- [x] `%` and `_` in search text are treated literally
+- [x] Filters persist after adding, editing or deleting a transaction
 
 ### Out of Scope
 
@@ -87,6 +87,9 @@ Agreed with Carel: Newer/Older keyset paging, 100 rows a page. No migration: `ix
   - **Templates:** a GET filter bar replaces the account links. It offers closed accounts and hidden categories, but not card payment categories. Paging uses Newer/Older links.
   - **Budget:** "Categorise them" links to `?category=none&to=<last day of the month>`.
   - **Tests:** `tests/test_transaction_list.py` (9): 451 rows paged both ways, each filter alone and combined, literal `%`/`_`/`\\`, uncategorised count equal to the budget's, forms returning to the same filtered page, `back` can't leave `/transactions`, bad parameters, other users' rows. Two older tests were updated for `back`. 204 tests pass on SQLite and PostgreSQL 16.
+
+- **Step 6 done (2026-11-08):** Carel tested on CT 161 with a 150-row CSV imported into a new account, Paging Test (account 6). It was created as a budget account by mistake and is left in place as test data. Paging over 211 rows (100/100/11) and over Paging Test alone (100/50), the budget's "Categorise them" link (162 rows in November), every filter alone and combined, and returning to the same filtered page after add, edit, cancel, delete and a category change all work. The database was checked afterwards.
+- **Found on the way, fixed on this branch:** the import mapping page now guesses afresh when a CSV's header has changed (see TASK-H006). The `checking` account type is now shown as "Current account" (label only, no migration).
 
 ---
 
