@@ -1,11 +1,11 @@
 # TASK-M005: Transaction list paging and search
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: M - Medium
 **Effort**: S - 1-2 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-08
 **Completed**:
 **Branch**: TASK-M005
 **Dependencies**: None
@@ -50,6 +50,21 @@ Make every transaction reachable from the transactions page, and let the user fi
 **Free to decide**: Paging style, filter UI.
 
 **Ask first**: Adding database indexes beyond what's needed for the default ordering (that needs a migration, TASK-C001).
+
+---
+
+## Agreed plan (2026-11-08)
+
+Agreed with Carel: Newer/Older keyset paging, 100 rows a page. No migration: `ix_transactions_user_date` serves the `(date, id)` order.
+
+1. **Query and paging:** one `_list_query()` with filters and keyset paging on `(date, id)` descending, 100 a page. `before=<date>:<id>` gives the next older page. `after=<date>:<id>` gives the next newer one: it's fetched in ascending order, then flipped. One extra row is fetched to tell whether there's another page. *Test:* 450 transactions, many on the same date, page through as 100/100/100/100/50 with no gaps or duplicates, both directions.
+2. **Filters (query parameters, bookmarkable):** `account_id` (kept from today), `category` (an ID, or `none`), `from`, `to`, `q`. `q` is a case-insensitive `LIKE` over payee and memo, with `\`, `%` and `_` escaped. Bad values (an unknown ID, a malformed date) are ignored rather than erroring. **`category=none` uses the budget page's rule:** budget account, no category, and not a transfer between two budget accounts. *Test:* each filter alone and combined; `50%` matches literally.
+3. **Filter bar:** a GET form above the list, replacing the account links. Closed accounts can be chosen. Plain UI.
+4. **Budget link:** "Categorise them" goes to `/transactions?category=none&to=<last day of the viewed month>`. *Test:* the filtered count equals `uncategorised_count`.
+5. **Filters kept after POST:** add, edit, delete and the no-JS category save carry the list's query string in a hidden `back` field. The redirect rebuilds `/transactions?...` from the known parameters only, so it can't be an open redirect. The page cursor is kept too. This replaces the edit page's `return_to=<account id>`. *Test:* each POST redirects back with its filters, and a 400 on add re-renders the filtered list.
+6. **Bookkeeping:** tests pass on SQLite and PostgreSQL; task file, `TASKS.md`; deploy to CT 161 and Carel tries it.
+
+**Out of scope:** new indexes, full-text search, running balance, and card payment categories as filter options (the existing picker leaves them out).
 
 ---
 
