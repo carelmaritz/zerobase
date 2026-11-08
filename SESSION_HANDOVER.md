@@ -1,59 +1,41 @@
-# Session Handover — 2026-11-07 — H005 done; H006 (CSV and OFX import) built, awaiting Carel's real-file test
+# Session Handover — 2026-11-08 — H006 (CSV and OFX import) done and merged; CT 161 on main
 
 ## Current state
 
-All verified on 2026-11-07.
+All verified on 2026-11-08.
 
-- **`main` at `602a2e5`** ("H006: plan agreed"), plus the commit that updated this handover. It contains H005 (merge `2a48dbb`) and pushes cleanly.
-- **Branch `TASK-H006` at `1f07766`**, pushed and **not merged**. 194 tests pass on SQLite and PostgreSQL 16; ruff is clean.
-- **Other branches:** `TASK-H003`, `TASK-H004` and `TASK-H005` are all fully merged and pushed. Delete them only if Carel asks.
+- **`main` at `181b0fa`** ("Merge TASK-H006"), plus the commit that updated this handover. Pushed. 195 tests pass on SQLite and PostgreSQL 16; ruff is clean.
+- **Branches:** `TASK-H003` to `TASK-H006` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, H005.
-  - **In progress: H006** (CSV and OFX import). Steps 1–4 are done; step 5 (Carel imports a real statement on CT 161) is pending. Details are in the "Work Completed" section of `TASKS/TASK-H006.md`.
-- **Database schema:**
-  - Head on `TASK-H006` is **`0007`** (`0007_imports.py`): `transactions.import_id` and the `import_mappings` table.
-  - Head on `main` is `0006`.
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005, **H006**.
+  - **Next:** nothing chosen yet. Pick from `TASKS/TASKS.md` with Carel.
+- **Database schema head: revision `0007`** (`0007_imports.py`): `transactions.import_id` and the `import_mappings` table.
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **branch `TASK-H006` (`1f07766`)**, not `main`. App and database are healthy, and the database is at **`0007`**.
+  - Runs **`main` (`181b0fa`)**. App and database are healthy, and the database is at `0007`. The app container wasn't rebuilt by the switch from the branch, because the code is the same.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
-  - **Data after Carel's H003–H005 testing** (all deliberate). Nothing has been imported yet.
+  - **Data after Carel's H003–H006 testing** (all deliberate):
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", Groceries hidden, the Needs group deleted (its categories moved to Bills).
     - Accounts: Savings changed to type Other, and **Savings is closed**. A £1,800 transfer Savings → Current (transactions 46/47) emptied it first. Savings' starting balance (transaction 3) has the payee "Starting odd" from an edit test.
     - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current, £10 refund to Dining out.
-    - Balances: Current £5,349.01, Savings £0.00 (closed), Mortgage −£181,450.00, Visa_Starling −£690.00.
-    - Ready to Assign: October £1,315.00, November and December **£815.00**. Checked again after the H006 deploy.
+    - **H006 test import into Current account (account 1):** 18 rows with `import_id`, net +£2,280.88. 10 were added (transactions 54–63, uncategorised). 8 existing ones were stamped: 35–39 and the transfer legs 44, 47 and 51. `import_mappings` has one row, for account 1. The file was made up, not a real bank download.
+    - Ready to Assign: October £1,315.00, November and December **£815.00**, unchanged by the import (checked 2026-11-08). November has 12 uncategorised transactions.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
   - **Backups** in `/opt/zerobase/backups/`:
-    - The latest is `zerobase-20261107-155225.sql.gz`, taken just before the H006 deploy (schema `0006`, card included).
-    - The one before it is `zerobase-20261102-140509.sql.gz` (before H005, schema `0005`).
+    - The latest is `zerobase-20261108-120033.sql.gz`, taken just before switching to `main` (schema `0007`, the test import included).
+    - `zerobase-20261107-155225.sql.gz` is from before H006 (schema `0006`).
 
 ## Completed this session
 
-1. **TASK-H004 (accounts), DONE**, merged as `0dd177b` on 2026-11-02. Details are in its task file.
-2. **TASK-H005 (credit cards), DONE**, merged as `2a48dbb` on 2026-11-07. Plan, worked examples and details are in `TASKS/TASK-H005.md`. In short:
-   - `build_budget` fills a `Ledger`; the pure `compute_budget()` / `_roll_month()` do the maths.
-   - Cash is funded first, then cards in account order. Unfunded card spending is credit overspending and doesn't reduce Ready to Assign.
-   - Payment categories are protected from `/categories` and from transaction pickers.
-   - Carel tested it on CT 161, with the database checked after each step: starting debt, funded spending, credit overspending (amber pill and note), payment, refund and rename.
-3. **TASK-H006 (CSV and OFX import), steps 1–4.** The plan was agreed on 2026-11-07, with OFX added at Carel's request. It's in "Agreed plan" in `TASKS/TASK-H006.md`.
-   - **Parsing:** `src/zerobase/importer.py` is a pure module covering CSV (with a mapping), OFX 1.x/2.x and `classify()` (NEW / IMPORTED / MATCH / ERROR). Tested by 38 unit tests in `tests/test_importer.py`.
-   - **Web:** `src/zerobase/routers/imports.py` handles upload → map (CSV only) → preview → confirm. The pages are `import_upload.html`, `import_map.html`, `import_preview.html` and `_import.html`. Tested by 18 tests in `tests/test_import_web.py`, including the card-payment workflow.
-   - **Migration `0007`:** tested in `tests/test_migrations.py`.
-   - **Deploy:** CT 161 was backed up and runs the branch.
+1. **TASK-H006 (CSV and OFX import), DONE**, merged as `181b0fa` on 2026-11-08. Plan and details are in `TASKS/TASK-H006.md`.
+   - **Mapping guess fix (`6324b95`):** "Debit Amount" / "Credit Amount" headers (Lloyds, Halifax) are now guessed as money out and in, not as one signed amount column.
+   - **Step 5:** Carel imported a made-up 18-row CSV and then re-imported it, with the database checked after each. The test file was generated in a scratchpad and not kept. A real bank download hasn't been tried: Carel chose to close the task anyway.
 
 ## Next steps
 
-1. **H006 step 5: Carel imports a real statement on CT 161.** Carel said they would get a bank download "when we do the work". Check the database after each step:
-   1. Import the file into Current; check the preview's dates, totals and signs.
-   2. Re-import it: everything should be "imported before".
-   3. Check that any matches against typed-in transactions are sensible.
-
-   Check that rows were added with `import_id` set and `category_id` NULL, that `import_mappings` has a row, and that Ready to Assign is unchanged.
-2. **If the real file doesn't parse,** or the guessed mapping is off: add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (decision 7).
-3. **Then mark H006 DONE.** Update the task file and the `TASKS.md` row in the same commit. Merge with `--no-ff` after `git pull --ff-only`, push, redeploy `main` to CT 161, and update this handover.
-4. **After that:** nothing is planned yet. The next H task is done, so pick from `TASKS/TASKS.md` with Carel, e.g. M005 (transaction paging) or the open items below.
+1. **Pick the next task with Carel** from `TASKS/TASKS.md`, e.g. M005 (transaction paging) or the open items below. Plan it with the `task-planning` skill before coding.
+2. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
 
 ## Open decisions
 
@@ -77,8 +59,8 @@ All verified on 2026-11-07.
 
 - **Task bookkeeping:** the task file is the source of truth. Any status change updates the task file **and** the `TASKS/TASKS.md` row in the same commit. One branch per task, named `TASK-XNNN`.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
-- **CT 161 is on a branch with migration `0007`.** Don't redeploy `main` there until H006 is merged. `main` has no revision `0007`, so its startup upgrade will most likely refuse the database (expected, not tried). To go back without merging, restore `zerobase-20261107-155225.sql.gz`, and only with Carel's OK.
 - **Imports (H006):**
+  - **Mapping guess:** an out/in pair of columns is looked for before a single amount column. Keep it that way: bank headers like "Debit Amount" contain the word "amount".
   - **File text between steps:** it travels in a hidden form field. The routes read their own form through `import_form`, with a 4 MB field limit; Starlette's default is 1 MB, and decoded Windows-1252 text can be longer than the upload. Uploads are capped at 1 MB (`importer.MAX_BYTES`).
   - **Import IDs:** `ofx:<FITID>` for OFX, `<date>:<amount>:<n>` for CSV. The likely-match rule also covers transactions imported in the other format.
   - **Saved settings:** `import_mappings.settings` is JSON: `{"csv": {"mapping", "header"}, "ofx": {"account_number"}}`.
