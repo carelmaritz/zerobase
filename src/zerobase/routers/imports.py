@@ -271,11 +271,12 @@ def upload(
         if header == settings["csv"].get("header"):
             statement = importer.parse_csv(content, saved)
             return _preview_page(request, db, user, account, content, statement, saved)
+        # Guess afresh: the saved columns may not even exist in this layout.
         note = (
-            "This file's columns don't match the last import into this account, so check "
-            "the mapping."
+            "This file's columns don't match the last import into this account, so they "
+            "have been guessed again. Check the mapping."
         )
-        return _map_page(request, user, account, content, saved, note=note)
+        return _map_page(request, user, account, content, importer.guess_mapping(table), note=note)
     return _map_page(request, user, account, content, importer.guess_mapping(table))
 
 

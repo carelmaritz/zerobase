@@ -12,6 +12,7 @@
 <section class="card">
   <h2>Add a transaction</h2>
   <form method="post" action="/transactions" class="grid-form">
+    <input type="hidden" name="back" value="{{ back }}">
     {{ transaction_fields(accounts, categories, inflow, values) }}
     <button type="submit" class="primary">Add</button>
   </form>
@@ -23,13 +24,38 @@
 <p class="notice">All your accounts are closed. Reopen one on the <a href="/accounts">Accounts</a> page to record transactions.</p>
 {% endif %}
 
-<p class="filters">
-  Show:
-  <a href="/transactions"{% if account_id is none %} aria-current="true"{% endif %}>All accounts</a>
-  {% for account in accounts if not account.closed or account.id == account_id %}
-  <a href="/transactions?account_id={{ account.id }}"{% if account.id == account_id %} aria-current="true"{% endif %}>{{ account.name }}</a>
-  {% endfor %}
-</p>
+<form method="get" action="/transactions" class="filters grid-form" aria-label="Filter transactions">
+  <label>Account
+    <select name="account_id">
+      <option value="">All accounts</option>
+      {% for account in accounts %}
+      <option value="{{ account.id }}"{% if account.id == account_id %} selected{% endif %}>{{ account.name }}{% if account.closed %} (closed){% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Category
+    <select name="category">
+      <option value="">Any category</option>
+      <option value="{{ uncategorised }}"{% if filters.category == uncategorised %} selected{% endif %}>Uncategorised</option>
+      <option value="{{ inflow.id }}"{% if filters.category == inflow.id|string %} selected{% endif %}>Inflow: Ready to Assign</option>
+      {%- set ns = namespace(group=None) %}
+      {%- for cat, grp in categories if not cat.is_card_payment or filters.category == cat.id|string %}
+        {%- if ns.group != grp.id %}
+          {%- if ns.group is not none %}</optgroup>{% endif %}
+          <optgroup label="{{ grp.name }}">
+          {%- set ns.group = grp.id %}
+        {%- endif %}
+        <option value="{{ cat.id }}"{% if filters.category == cat.id|string %} selected{% endif %}>{{ cat.name }}{% if cat.hidden %} (hidden){% endif %}</option>
+      {%- endfor %}
+      {%- if ns.group is not none %}</optgroup>{% endif %}
+    </select>
+  </label>
+  <label>From <input type="date" name="from" value="{{ filters.start.isoformat() if filters.start else '' }}"></label>
+  <label>To <input type="date" name="to" value="{{ filters.end.isoformat() if filters.end else '' }}"></label>
+  <label>Payee or memo <input type="search" name="q" value="{{ filters.text }}" maxlength="100"></label>
+  <button type="submit">Show</button>
+  {% if filters.any_filter %}<a href="/transactions">Clear filters</a>{% endif %}
+</form>
 {% endif %}
 
 {% if transactions %}
@@ -54,6 +80,7 @@
         {% if t.takes_category %}
         <form method="post" action="/transactions/{{ t.id }}/category"
               hx-post="/transactions/{{ t.id }}/category" hx-trigger="change" hx-swap="none">
+          <input type="hidden" name="back" value="{{ back }}">
           <select name="category_id" aria-label="Category for {{ t.payee or 'transaction' }}">{{ category_options(categories, inflow, t.category_id) }}</select>
           <noscript><button type="submit">Save</button></noscript>
         </form>
@@ -63,8 +90,9 @@
       <td class="r">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>
       <td class="r">{% if t.amount > 0 %}{{ t.amount|money }}{% endif %}</td>
       <td class="row-actions">
-        <a href="/transactions/{{ t.id }}/edit{% if account_id is not none %}?return_to={{ account_id }}{% endif %}" aria-label="Edit transaction">Edit</a>
+        <a href="/transactions/{{ t.id }}/edit{% if back %}?{{ {"back": back}|urlencode }}{% endif %}" aria-label="Edit transaction">Edit</a>
         <form method="post" action="/transactions/{{ t.id }}/delete">
+          <input type="hidden" name="back" value="{{ back }}">
           <button class="link danger" type="submit" aria-label="Delete transaction">Delete</button>
         </form>
       </td>
@@ -72,8 +100,14 @@
     {% endfor %}
   </tbody>
 </table>
-{% if transactions|length >= page_size %}<p class="muted">Showing the latest {{ page_size }} transactions.</p>{% endif %}
-{% elif accounts %}
-<p class="muted">No transactions yet.</p>
+{% endif %}
+{% if newer_url or older_url %}
+<nav class="pager" aria-label="Pages">
+  {% if newer_url %}<a href="{{ newer_url }}" rel="prev">← Newer</a>{% endif %}
+  {% if older_url %}<a href="{{ older_url }}" rel="next">Older →</a>{% endif %}
+</nav>
+{% endif %}
+{% if not transactions and accounts %}
+<p class="muted">{{ "No transactions match these filters." if filters.any_filter else "No transactions here." if filters.before else "No transactions yet." }}</p>
 {% endif %}
 {% endblock %}

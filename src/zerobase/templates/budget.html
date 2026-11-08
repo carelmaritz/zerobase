@@ -19,7 +19,7 @@
   {%- if view.uncategorised_outflow and view.uncategorised_inflow %}, {% endif %}
   {%- if view.uncategorised_inflow %}{{ view.uncategorised_inflow|money }} in{% endif %})
   not counted in your budget yet.
-  <a href="/transactions">Categorise {{ "it" if view.uncategorised_count == 1 else "them" }}</a>.
+  <a href="{{ uncategorised_url }}">Categorise {{ "it" if view.uncategorised_count == 1 else "them" }}</a>.
 </p>
 {% endif %}
 

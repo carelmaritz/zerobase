@@ -133,6 +133,27 @@ def test_the_mapping_is_remembered_and_a_changed_header_asks_again(client, db, a
     changed = SIGNED.replace("Reference", "Ref")
     page = upload(client, account, changed).text
     assert "Which column is which?" in page and "don&#39;t match the last import" in page
+    assert "guessed again" in page
+
+
+def test_a_changed_layout_is_guessed_afresh_not_given_the_old_columns(client, db, account):
+    # Out/in columns saved from one layout, then a file with one signed amount column:
+    # the old "money in" column doesn't exist in the new file (found on CT 161).
+    mapping = {
+        **SIGNED_MAP,
+        "date_format": "dd mon yyyy",
+        "memo_col": "",
+        "amount_col": "",
+        "out_col": "2",
+        "in_col": "3",
+    }
+    confirm(client, account, IN_OUT, add=[], mapping=mapping)
+    page = upload(client, account, SIGNED).text
+    assert "guessed again" in page
+    amount = page.split('name="amount_col"')[1].split("</select>")[0]
+    money_out = page.split('name="out_col"')[1].split("</select>")[0]
+    assert '<option value="3" selected>' in amount
+    assert '<option value="" selected>' in money_out
 
 
 def test_hand_entered_transactions_are_matched_not_doubled(client, db, account):

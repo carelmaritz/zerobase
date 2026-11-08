@@ -312,10 +312,10 @@ def test_invalid_edit_reshows_the_form_and_changes_nothing(client, db):
 def test_edit_returns_to_the_filtered_list(client, db):
     s = _edit_setup(client, db)
     page = client.get(f"/transactions?account_id={s['current']}").text
-    assert f"/edit?return_to={s['current']}" in page
-    form = client.get(f"/transactions/{s['txn'].id}/edit?return_to={s['current']}").text
-    assert f'name="return_to" value="{s["current"]}"' in form
-    response = _edit(client, s, return_to=str(s["current"]))
+    assert f"/edit?back=account_id%3D{s['current']}" in page
+    form = client.get(f"/transactions/{s['txn'].id}/edit?back=account_id%3D{s['current']}").text
+    assert f'name="back" value="account_id={s["current"]}"' in form
+    response = _edit(client, s, back=f"account_id={s['current']}")
     assert response.headers["location"] == f"/transactions?account_id={s['current']}"
 
 

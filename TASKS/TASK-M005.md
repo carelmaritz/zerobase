@@ -1,12 +1,12 @@
 # TASK-M005: Transaction list paging and search
 
-**Status**: TODO
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: S - 1-2 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
-**Completed**:
+**Started**: 2026-11-08
+**Completed**: 2026-11-08
 **Branch**: TASK-M005
 **Dependencies**: None
 
@@ -32,10 +32,10 @@ Make every transaction reachable from the transactions page, and let the user fi
 - Keep `account_id` filter behaviour and the add-transaction form working.
 
 ### Success Criteria
-- [ ] All transactions reachable via paging
-- [ ] Each filter works alone and combined
-- [ ] `%` and `_` in search text are treated literally
-- [ ] Filters persist after adding, editing or deleting a transaction
+- [x] All transactions reachable via paging
+- [x] Each filter works alone and combined
+- [x] `%` and `_` in search text are treated literally
+- [x] Filters persist after adding, editing or deleting a transaction
 
 ### Out of Scope
 
@@ -53,6 +53,21 @@ Make every transaction reachable from the transactions page, and let the user fi
 
 ---
 
+## Agreed plan (2026-11-08)
+
+Agreed with Carel: Newer/Older keyset paging, 100 rows a page. No migration: `ix_transactions_user_date` serves the `(date, id)` order.
+
+1. **Query and paging:** one `_list_query()` with filters and keyset paging on `(date, id)` descending, 100 a page. `before=<date>:<id>` gives the next older page. `after=<date>:<id>` gives the next newer one: it's fetched in ascending order, then flipped. One extra row is fetched to tell whether there's another page. *Test:* 450 transactions, many on the same date, page through as 100/100/100/100/50 with no gaps or duplicates, both directions.
+2. **Filters (query parameters, bookmarkable):** `account_id` (kept from today), `category` (an ID, or `none`), `from`, `to`, `q`. `q` is a case-insensitive `LIKE` over payee and memo, with `\`, `%` and `_` escaped. Bad values (an unknown ID, a malformed date) are ignored rather than erroring. **`category=none` uses the budget page's rule:** budget account, no category, and not a transfer between two budget accounts. *Test:* each filter alone and combined; `50%` matches literally.
+3. **Filter bar:** a GET form above the list, replacing the account links. Closed accounts can be chosen. Plain UI.
+4. **Budget link:** "Categorise them" goes to `/transactions?category=none&to=<last day of the viewed month>`. *Test:* the filtered count equals `uncategorised_count`.
+5. **Filters kept after POST:** add, edit, delete and the no-JS category save carry the list's query string in a hidden `back` field. The redirect rebuilds `/transactions?...` from the known parameters only, so it can't be an open redirect. The page cursor is kept too. This replaces the edit page's `return_to=<account id>`. *Test:* each POST redirects back with its filters, and a 400 on add re-renders the filtered list.
+6. **Bookkeeping:** tests pass on SQLite and PostgreSQL; task file, `TASKS.md`; deploy to CT 161 and Carel tries it.
+
+**Out of scope:** new indexes, full-text search, running balance, and card payment categories as filter options (the existing picker leaves them out).
+
+---
+
 ## Implementation Plan
 
 ### Phase 1
@@ -65,7 +80,16 @@ Make every transaction reachable from the transactions page, and let the user fi
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+- **Steps 1–5 done (2026-11-08):**
+  - **`src/zerobase/transaction_list.py`:** `ListFilters` (parsed from the query string, or from a form's `back` field; values that don't parse are dropped), `filtered()` (the filters as one query) and `load_page()` (keyset paging, 100 a page). An unknown but well-formed ID just matches nothing.
+  - **Newer from page 2:** when the newer rows don't fill a page, the real first page is shown, so the top page is always full.
+  - **`routers/transactions.py`:** the list reads its filters with `ListFilters.from_params`. Add, edit, delete and the no-JS category save carry a hidden `back` field and redirect to `ListFilters.from_back(back).url()`, which is rebuilt from known parameters only. `return_to` is gone.
+  - **Templates:** a GET filter bar replaces the account links. It offers closed accounts and hidden categories, but not card payment categories. Paging uses Newer/Older links.
+  - **Budget:** "Categorise them" links to `?category=none&to=<last day of the month>`.
+  - **Tests:** `tests/test_transaction_list.py` (9): 451 rows paged both ways, each filter alone and combined, literal `%`/`_`/`\\`, uncategorised count equal to the budget's, forms returning to the same filtered page, `back` can't leave `/transactions`, bad parameters, other users' rows. Two older tests were updated for `back`. 204 tests pass on SQLite and PostgreSQL 16.
+
+- **Step 6 done (2026-11-08):** Carel tested on CT 161 with a 150-row CSV imported into a new account, Paging Test (account 6). It was created as a budget account by mistake and is left in place as test data. Paging over 211 rows (100/100/11) and over Paging Test alone (100/50), the budget's "Categorise them" link (162 rows in November), every filter alone and combined, and returning to the same filtered page after add, edit, cancel, delete and a category change all work. The database was checked afterwards.
+- **Found on the way, fixed on this branch:** the import mapping page now guesses afresh when a CSV's header has changed (see TASK-H006). The `checking` account type is now shown as "Current account" (label only, no migration).
 
 ---
 

@@ -4,17 +4,16 @@ from datetime import date
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ..budget import inflow_category
 from ..deps import current_user, get_db, owned_account, owned_category, owned_transaction
 from ..models import Account, Category, CategoryGroup, Transaction, User
 from ..money import parse_money, plain_money
 from ..templating import render
+from ..transaction_list import UNCATEGORISED, ListFilters, load_page
 
 router = APIRouter()
-
-PAGE_SIZE = 200
 
 
 def _pickers(db: Session, user: User) -> dict:
@@ -37,32 +36,25 @@ def _page(
     request: Request,
     db: Session,
     user: User,
-    account_id: int | None = None,
+    filters: ListFilters,
     error: str | None = None,
     status: int = 200,
     values: dict | None = None,
 ):
-    query = (
-        select(Transaction)
-        .options(
-            joinedload(Transaction.account),
-            joinedload(Transaction.category),
-            joinedload(Transaction.transfer).joinedload(Transaction.account),
-        )
-        .where(Transaction.user_id == user.id)
-        .order_by(Transaction.date.desc(), Transaction.id.desc())
-        .limit(PAGE_SIZE)
-    )
-    if account_id is not None:
-        query = query.where(Transaction.account_id == account_id)
+    page = load_page(db, user.id, filters)
+    account_id = filters.account_id
     context = {
         "user": user,
         "active": "transactions",
-        "transactions": db.scalars(query).unique().all(),
+        "transactions": page.transactions,
+        "older_url": page.older.url() if page.older else None,
+        "newer_url": page.newer.url() if page.newer else None,
         **_pickers(db, user),
+        "filters": filters,
+        "uncategorised": UNCATEGORISED,
+        "back": filters.query_string(),
         "account_id": account_id,
         "values": values or {"account_id": account_id, "when": date.today().isoformat()},
-        "page_size": PAGE_SIZE,
         "error": error,
     }
     return render(request, "transactions.html", context, status_code=status)
@@ -71,11 +63,11 @@ def _page(
 @router.get("/transactions", response_class=HTMLResponse)
 def transactions_page(
     request: Request,
-    account_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    return _page(request, db, user, account_id)
+    # Read by hand: "from" is a Python keyword, and bad values are dropped, not refused.
+    return _page(request, db, user, ListFilters.from_params(request.query_params))
 
 
 @dataclass
@@ -244,25 +236,28 @@ def _save(db: Session, user: User, valid: ValidTransaction, transaction: Transac
     transaction.transfer_id, other.transfer_id = other.id, transaction.id
 
 
-def _list_url(account_id: int | None) -> str:
-    return "/transactions" if account_id is None else f"/transactions?account_id={account_id}"
+def _back_to(back: str) -> RedirectResponse:
+    """Back to the list the form came from. Rebuilt from known filters: never a free URL."""
+    return RedirectResponse(ListFilters.from_back(back).url(), status_code=303)
 
 
 @router.post("/transactions")
 def add_transaction(
     request: Request,
     form: TransactionForm = Depends(_form),
+    back: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     valid = _validate(db, user, form)
     if isinstance(valid, str):
-        return _page(request, db, user, error=valid, status=400, values=form.values())
+        filters = ListFilters.from_back(back)
+        return _page(request, db, user, filters, error=valid, status=400, values=form.values())
     transaction = Transaction(user_id=user.id)
     db.add(transaction)
     _save(db, user, valid, transaction)
     db.commit()
-    return RedirectResponse("/transactions", status_code=303)
+    return _back_to(back)
 
 
 def _edit_page(
@@ -271,7 +266,7 @@ def _edit_page(
     user: User,
     transaction: Transaction,
     values: dict,
-    return_to: int | None,
+    back: str,
     error: str | None = None,
     status: int = 200,
 ):
@@ -281,8 +276,8 @@ def _edit_page(
         "transaction": transaction,
         **_pickers(db, user),
         "values": values,
-        "return_to": return_to,
-        "back_url": _list_url(return_to),
+        "back": ListFilters.from_back(back).query_string(),
+        "back_url": ListFilters.from_back(back).url(),
         "error": error,
     }
     return render(request, "transaction_edit.html", context, status_code=status)
@@ -292,7 +287,7 @@ def _edit_page(
 def edit_transaction_form(
     request: Request,
     transaction_id: int,
-    return_to: int | None = None,
+    back: str = "",
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -310,7 +305,7 @@ def edit_transaction_form(
         "outflow": plain_money(-amount) if amount < 0 else "",
         "inflow": plain_money(amount) if amount > 0 else "",
     }
-    return _edit_page(request, db, user, transaction, values, return_to)
+    return _edit_page(request, db, user, transaction, values, back)
 
 
 @router.post("/transactions/{transaction_id}/edit")
@@ -318,23 +313,23 @@ def edit_transaction(
     request: Request,
     transaction_id: int,
     form: TransactionForm = Depends(_form),
-    return_to: str = Form(""),
+    back: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     transaction = owned_transaction(db, user, transaction_id)
-    back_to = int(return_to) if return_to.isdigit() else None
     valid = _validate(db, user, form, existing=transaction)
     if isinstance(valid, str):
-        return _edit_page(request, db, user, transaction, form.values(), back_to, valid, 400)
+        return _edit_page(request, db, user, transaction, form.values(), back, valid, 400)
     _save(db, user, valid, transaction)
     db.commit()
-    return RedirectResponse(_list_url(back_to), status_code=303)
+    return _back_to(back)
 
 
 @router.post("/transactions/{transaction_id}/delete")
 def delete_transaction(
     transaction_id: int,
+    back: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -344,7 +339,7 @@ def delete_transaction(
             db.delete(transaction.transfer)
         db.delete(transaction)
         db.commit()
-    return RedirectResponse("/transactions", status_code=303)
+    return _back_to(back)
 
 
 @router.post("/transactions/{transaction_id}/category")
@@ -352,6 +347,7 @@ def set_category(
     request: Request,
     transaction_id: int,
     category_id: str = Form(""),
+    back: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -375,4 +371,4 @@ def set_category(
 
     if request.headers.get("hx-request"):
         return Response(status_code=204)
-    return RedirectResponse("/transactions", status_code=303)
+    return _back_to(back)
