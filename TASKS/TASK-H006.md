@@ -188,6 +188,7 @@ The rules below are for CSV. OFX has its own subsection after them.
   - **Confirm:** the `add` field lists the lines to add. A matched row left unticked stamps its ID on the existing transaction, but only if that transaction has no import ID yet.
   - **Account deletion:** deleting an empty account deletes its import settings.
   - **Tests:** `tests/test_import_web.py` (18), including the card-payment workflow from decision 3. 194 tests pass on SQLite and PostgreSQL 16.
+- **Mapping guess fix (2026-11-08):** `guess_mapping()` now looks for a money out/in pair before a single amount column. Before, Lloyds and Halifax headers (`Debit Amount`, `Credit Amount`) were guessed as one signed amount column (`Debit Amount`), because both contain the word "amount". Tested in `test_guess_mapping_reads_debit_and_credit_amount_as_a_pair`. 195 tests pass on SQLite.
 - **Known edges, left alone:**
   - If a bank splits one day across two statements, and the same purchase (same amount) is on both halves, the second file's copy gets `:1` and is taken as already imported. This is YNAB's behaviour too.
   - A pending transaction that later changes amount or date gets a new ID in CSV files.

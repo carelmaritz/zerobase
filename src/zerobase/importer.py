@@ -193,10 +193,15 @@ def guess_mapping(rows: list[list[str]]) -> Mapping:
         return None
 
     date_col = find("date")
-    amount_col = find("amount")
-    out_col = in_col = None
-    if amount_col is None:
-        out_col, in_col = find("out"), find("in")
+    # Money out/in columns first: "Debit Amount" and "Credit Amount" (Lloyds, Halifax)
+    # contain the word "amount" but are a pair, not one signed column.
+    out_col, in_col = find("out"), find("in")
+    amount_col = None
+    if out_col is None or in_col is None:
+        taken.discard(out_col)
+        taken.discard(in_col)
+        out_col = in_col = None
+        amount_col = find("amount")
     payee_col, memo_col = find("payee"), find("memo")
     date_col = 0 if date_col is None else date_col
     samples = [r[date_col] for r in rows[1:21] if len(r) > date_col]

@@ -196,6 +196,21 @@ def test_guess_mapping_from_headers():
     assert mapping.problem() is None
 
 
+def test_guess_mapping_reads_debit_and_credit_amount_as_a_pair():
+    # Lloyds and Halifax: both columns contain "amount", but they're money out and in.
+    text = (
+        "Transaction Date,Transaction Type,Sort Code,Account Number,"
+        "Transaction Description,Debit Amount,Credit Amount,Balance\n"
+        "07/11/2026,DEB,'30-00-00,12345678,TESCO STORES,12.34,,987.66\n"
+        "06/11/2026,FPI,'30-00-00,12345678,EMPLOYER LTD,,1000.00,1000.00\n"
+    )
+    mapping = guess_mapping(read_csv(text))
+    assert (mapping.date_col, mapping.payee_col, mapping.out_col, mapping.in_col) == (0, 4, 5, 6)
+    assert mapping.amount_col is None and mapping.problem() is None
+    amounts = [row.amount for row in parse_csv(text, mapping).rows]
+    assert amounts == [-1234, 100000]
+
+
 def test_mapping_problems():
     assert signed_mapping().problem() is None
     assert signed_mapping(date_format="whenever").problem() == "Choose a date format."
