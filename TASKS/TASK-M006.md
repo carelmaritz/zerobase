@@ -1,12 +1,12 @@
 # TASK-M006: Cleared status and reconciliation
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: M - 3-5 days
 **Assigned**: Claude
 **Created**: 2026-10-21
 **Started**: 2026-11-08
-**Completed**:
+**Completed**: 2026-11-09
 **Branch**: TASK-M006
 **Dependencies**: TASK-C001, TASK-H001
 
@@ -34,11 +34,11 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
 - CSV import (TASK-H006) may mark imported rows cleared.
 
 ### Success Criteria
-- [ ] Toggle cleared persists
-- [ ] Reconcile with matching balance marks cleared as reconciled
-- [ ] Reconcile with a difference creates exactly one adjustment and then reconciles
-- [ ] Editing a reconciled transaction requires confirmation
-- [ ] Migration up/down tested
+- [x] Toggle cleared persists
+- [x] Reconcile with matching balance marks cleared as reconciled
+- [x] Reconcile with a difference creates exactly one adjustment and then reconciles
+- [x] Editing a reconciled transaction requires confirmation
+- [x] Migration up/down tested
 
 ### Out of Scope
 
@@ -99,6 +99,14 @@ YNAB's reconciliation is how users keep the app honest against reality. Without 
   - **Import:** added rows are `cleared`; a matched typed-in row goes from uncleared to cleared (reconciled stays).
   - **Also (Claude's call, like YNAB):** a new account's starting balance is created `cleared`. Existing ones stay uncleared after the migration.
   - **Tests:** `tests/test_reconcile.py` (13), the 0008 test in `tests/test_migrations.py`, and status checks in `tests/test_import_web.py`. 220 tests pass on SQLite and PostgreSQL 16.
+
+- **Step 7 done (2026-11-09):** Carel tested on CT 161, and the database was checked after each step:
+  - Toggling cleared on Current account (rows 24, 51 and 54) works.
+  - A matching reconcile (−£119.34) set the rows to reconciled and `reconciled_on`.
+  - Editing reconciled row 51 was refused without the tick and saved with it. The transfer's other side, row 52 on Visa_Starling, followed.
+  - Row 54 was set back to cleared through Status.
+  - Difference adjustments on Current account (Ready to Assign moved by £10) and on Mortgage (no category, Ready to Assign unchanged) work, and both were deleted afterwards with the tick.
+- **Seen in testing:** on an existing account whose rows are all uncleared, including the starting balance, the cleared balance is £0. So a reconcile there turns the whole bank balance into the adjustment. Clear the rows first. New accounts avoid this, because their starting balance starts out cleared.
 
 ---
 
