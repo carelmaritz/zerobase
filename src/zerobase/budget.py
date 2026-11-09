@@ -36,12 +36,15 @@ from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from .models import (
+    BALANCE,
     CREDIT_CARD,
+    MONTHLY,
     UNCLEARED,
     Account,
     Assignment,
     Category,
     CategoryGroup,
+    Target,
     Transaction,
 )
 
@@ -74,6 +77,8 @@ class CategoryLine:
     cash_overspent: int = 0
     credit_overspent: int = 0
     needed: int = 0
+    target: Target | None = None
+    underfunded: int = 0  # more to assign this month to meet the target
 
 
 @dataclass
@@ -104,6 +109,15 @@ class BudgetView:
     uncategorised_outflow: int  # negative
     uncategorised_inflow: int
     hidden: list[CategoryLine] = field(default_factory=list)
+
+    @property
+    def underfunded(self) -> int:
+        """Underfunded in the categories shown: what "Assign all" would fund."""
+        return sum(line.underfunded for block in self.groups for line in block.lines)
+
+    def fundable(self) -> list[CategoryLine]:
+        """Visible lines with a target to fund, in budget order."""
+        return [line for block in self.groups for line in block.lines if line.underfunded]
 
 
 @dataclass
@@ -228,6 +242,26 @@ def compute_budget(
 
     ready = sum(ledger.income.values()) - sum(ledger.assigned.values()) - cash_overspent_before
     return figures, ready
+
+
+def underfunded(
+    kind: str, amount: int, by: date | None, month: date, assigned: int, available: int
+) -> int:
+    """How much more to assign to a category in ``month`` to meet its target.
+
+    ``assigned`` is this month's assignment and ``available`` the Available at the end of
+    the month. Worked examples are in TASKS/TASK-M001.md.
+    """
+    if kind == MONTHLY:  # set aside the amount every month
+        return max(0, amount - assigned)
+    if kind == BALANCE:
+        return max(0, amount - available)
+    # BY_DATE: what's left before this month's assigning, spread over the months to go.
+    assert by is not None
+    start = available - assigned
+    months_left = max(1, (by.year - month.year) * 12 + by.month - month.month + 1)
+    share = -(-max(0, amount - start) // months_left)  # rounded up to the penny
+    return max(0, share - assigned)
 
 
 def _year_month(year: float, month: float) -> date:
@@ -359,6 +393,11 @@ def build_budget(
 
     standard_ids = [c.id for c in categories if not c.is_card_payment]
     figures, ready_to_assign = compute_budget(ledger, standard_ids, month)
+    targets = {
+        t.category_id: t
+        for t in db.scalars(select(Target).where(Target.user_id == user_id))
+        if t.category_id != source_id
+    }
     blocks = {g.id: GroupBlock(g) for g in groups}
     hidden: list[CategoryLine] = []
     for category in categories:
@@ -372,6 +411,12 @@ def build_budget(
             f.credit_overspent,
             f.needed,
         )
+        target = targets.get(category.id)
+        if target is not None and category.kind == "standard":
+            line.target = target
+            line.underfunded = underfunded(
+                target.kind, target.amount, target.month, month, f.assigned, f.available
+            )
         (hidden if category.hidden else blocks[category.group_id].lines).append(line)
 
     return BudgetView(
@@ -386,6 +431,67 @@ def build_budget(
     )
 
 
+# How far ahead :func:`assign_cap` looks. Far-future rows (a mistyped year) only slow it.
+CAP_HORIZON_MONTHS = 24
+
+
+def assign_cap(db: Session, user_id: int, month: date) -> int:
+    """The most that can be assigned in ``month`` without any Ready to Assign going below 0.
+
+    An assignment in ``month`` lowers Ready to Assign in every later month too, so this is
+    the lowest Ready to Assign from ``month`` to the last month with assignments or
+    transactions (plus one: overspending reaches Ready to Assign the month after).
+    """
+    month = month_start(month)
+    latest = [
+        db.scalar(select(func.max(Assignment.month)).where(Assignment.user_id == user_id)),
+        db.scalar(select(func.max(Transaction.date)).where(Transaction.user_id == user_id)),
+    ]
+    last = max([month, *(add_months(month_start(d), 1) for d in latest if d is not None)])
+    last = min(last, add_months(month, CAP_HORIZON_MONTHS))
+    cap = None
+    cursor = month
+    while cursor <= last:
+        ready = build_budget(db, user_id, cursor).ready_to_assign
+        cap = ready if cap is None else min(cap, ready)
+        cursor = add_months(cursor, 1)
+    return max(0, cap or 0)
+
+
+def fund(db: Session, user_id: int, month: date, lines: list[CategoryLine]) -> list[CategoryLine]:
+    """Assign each line's underfunded amount in ``month``, in order, within :func:`assign_cap`.
+
+    Returns the lines that couldn't be fully funded. Flushes; the caller commits.
+    """
+    month = month_start(month)
+    left = assign_cap(db, user_id, month)
+    short = []
+    for line in lines:
+        amount = min(line.underfunded, left)
+        if amount < line.underfunded:
+            short.append(line)
+        if amount <= 0:
+            continue
+        left -= amount
+        existing = db.scalar(
+            select(Assignment).where(
+                Assignment.category_id == line.category.id, Assignment.month == month
+            )
+        )
+        if existing is None:
+            db.add(
+                Assignment(
+                    user_id=user_id, category_id=line.category.id, month=month, amount=amount
+                )
+            )
+        elif existing.amount + amount == 0:  # as the assign route does: no zero assignments
+            db.delete(existing)
+        else:
+            existing.amount += amount
+    db.flush()
+    return short
+
+
 def category_in_use(db: Session, category: Category) -> bool:
     """Whether any transaction or assignment refers to the category."""
     return any(
@@ -395,7 +501,7 @@ def category_in_use(db: Session, category: Category) -> bool:
 
 
 def merge_category(db: Session, source: Category, target: Category) -> None:
-    """Move the source's transactions and assignments to the target, then delete it.
+    """Move the source's transactions, assignments and target to ``target``, then delete it.
 
     Assignments in the same month are summed (one assignment per category and month).
     Totals are unchanged, but past overspending can be: an overspent source merged into
@@ -425,7 +531,14 @@ def merge_category(db: Session, source: Category, target: Category) -> None:
         db.delete(moving)
         if kept.amount == 0:  # as the assign route does: no zero assignments
             db.delete(kept)
-    db.flush()  # assignments off the source before it goes
+    # One target per category: the target's own wins, else it takes the source's.
+    moving_target = db.scalar(select(Target).where(Target.category_id == source.id))
+    if moving_target is not None:
+        if db.scalar(select(Target.id).where(Target.category_id == target.id)) is None:
+            moving_target.category_id = target.id
+        else:
+            db.delete(moving_target)
+    db.flush()  # assignments and target off the source before it goes
     db.delete(source)
     db.flush()
 

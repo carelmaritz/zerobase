@@ -38,10 +38,10 @@ Requirements:
 - Quick assign: "Assign underfunded" per category and for all, limited by Ready to Assign (decide what happens when there isn't enough).
 
 ### Success Criteria
-- [ ] Each target type shows correct underfunded amounts across several months, including after overspending and rollover
-- [ ] Quick-assign never assigns more than Ready to Assign without the user choosing to
-- [ ] Targets deleted with their category (or moved on reassignment, coordinate with TASK-H003)
-- [ ] Migration up/down tested
+- [x] Each target type shows correct underfunded amounts across several months, including after overspending and rollover
+- [x] Quick-assign never assigns more than Ready to Assign without the user choosing to
+- [x] Targets deleted with their category (or moved on reassignment, coordinate with TASK-H003)
+- [x] Migration up/down tested
 
 ### Out of Scope
 
@@ -94,19 +94,28 @@ Progress shown: monthly is A / X; the two balance types are V / T.
 ## Implementation Plan
 
 ### Phase 1
-- [ ] Define the maths for each type with worked examples in this file; unit tests first
-- [ ] Migration and model
+- [x] Define the maths for each type with worked examples in this file; unit tests first
+- [x] Migration and model
 
 ### Phase 2
-- [ ] Set/edit/remove target UI
-- [ ] Budget view indicators and totals
-- [ ] Quick-assign routes (htmx, reuse OOB update pattern from `_budget_oob.html`)
+- [x] Set/edit/remove target UI
+- [x] Budget view indicators and totals
+- [x] Quick-assign routes (htmx, reuse OOB update pattern from `_budget_oob.html`)
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+2026-11-09 (branch `TASK-M001`):
+- **Migration `0009`:** `targets` table, one per category (`uq_targets_category_id`), CASCADE with the category. The `Target` model and the kind constants (`MONTHLY`, `BALANCE`, `BY_DATE`) are in `models.py`.
+- **Maths:** `budget.underfunded()`, tested with the worked examples above in `tests/test_target_maths.py`. `build_budget()` sets `line.target` and `line.underfunded`. `view.underfunded` totals the visible categories.
+- **Merge and delete:** `merge_category()` keeps the target category's own target, or moves the source's. Deleting an unused category deletes its target explicitly.
+- **Target page:** `routers/targets.py` and `templates/target.html`, at `GET/POST /categories/{id}/target` and `POST .../target/delete`. Standard categories only (others return 404).
+- **Budget page:** each line has a progress bar with "£A of £T", "needs £X" and an "Assign £X" button, or a "Set a target" link. Above the table is "Underfunded this month" with "Assign all underfunded".
+- **Quick-assign:** `POST /budget/fund` (one category) and `POST /budget/fund-all`, via `budget.fund()` and `budget.assign_cap()`. The htmx response is `_budget_oob.html` with `inputs=True`, so the assigned inputs are swapped too.
+- **Tests:** `tests/test_targets.py`, plus the `0009` test in `tests/test_migrations.py`.
+
+Hidden categories: a hidden category's target stays, but the budget's hidden table shows no target or button. Unhide the category to fund it (as for assigning).
 
 ---
 
@@ -119,10 +128,10 @@ None yet.
 ## Testing
 
 ### Test Cases
-- [ ] Monthly target, partially assigned
-- [ ] Balance-by-date target, months left = 1 and target month already passed
-- [ ] Target balance reached by rollover alone: underfunded = 0
-- [ ] Quick-assign all with insufficient Ready to Assign
+- [x] Monthly target, partially assigned
+- [x] Balance-by-date target, months left = 1 and target month already passed
+- [x] Target balance reached by rollover alone: underfunded = 0
+- [x] Quick-assign all with insufficient Ready to Assign
 
 ---
 
@@ -134,4 +143,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-09 by Claude*

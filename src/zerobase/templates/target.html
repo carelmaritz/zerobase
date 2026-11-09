@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Target for {{ category.name }}{% endblock %}
+{% block content %}
+<h1>Target for {{ category.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<section class="card">
+  <form method="post" action="/categories/{{ category.id }}/target" class="grid-form">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <fieldset>
+      <legend>Kind of target</legend>
+      {% for key, label in kinds.items() %}
+      <label class="choice"><input type="radio" name="kind" value="{{ key }}"{% if key == v.kind %} checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <label>Amount <input type="text" inputmode="decimal" name="amount" autocomplete="off" placeholder="0.00" value="{{ v.amount }}" required></label>
+    <label>By month (only for "by a month") <input type="month" name="by" value="{{ v.by }}"></label>
+    <button type="submit" class="primary">Save target</button>
+  </form>
+</section>
+
+{% if existing %}
+<section class="card">
+  <form method="post" action="/categories/{{ category.id }}/target/delete">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <button type="submit">Remove target</button>
+  </form>
+</section>
+{% endif %}
+<p><a href="/budget?month={{ month_key }}">Back to the budget</a></p>
+{% endblock %}

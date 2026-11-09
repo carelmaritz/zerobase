@@ -313,3 +313,35 @@ def test_0008_existing_transactions_start_uncleared_and_downgrade_keeps_them(eng
         assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 1
     assert "status" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert "reconciled_on" not in {c["name"] for c in inspect(engine).get_columns("accounts")}
+
+
+def test_0009_targets_are_one_per_category_and_go_with_the_category(engine):
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO categories (user_id, name, sort_order, kind, hidden) "
+                "SELECT id, 'Groceries', 0, 'standard', :f FROM users"
+            ),
+            {"f": False},
+        )
+        insert = text(
+            "INSERT INTO targets (user_id, category_id, kind, amount) "
+            "SELECT user_id, id, 'monthly', 40000 FROM categories"
+        )
+        connection.execute(insert)
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(insert)
+    if engine.dialect.name == "postgresql":  # SQLite doesn't enforce the CASCADE here
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM categories"))
+            assert connection.execute(text("SELECT count(*) FROM targets")).scalar() == 0
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0008")
+    assert "targets" not in app_tables(engine)

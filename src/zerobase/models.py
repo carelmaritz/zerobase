@@ -173,6 +173,32 @@ class Assignment(Base):
     amount: Mapped[int] = mapped_column(BigInteger)
 
 
+# Target.kind (TASK-M001): assign an amount every month; have a balance; or have a
+# balance by a month (``Target.month``).
+MONTHLY, BALANCE, BY_DATE = "monthly", "balance", "by_date"
+TARGET_KINDS = (MONTHLY, BALANCE, BY_DATE)
+
+
+class Target(Base):
+    """A category's target (at most one per category). See ``budget.underfunded``.
+
+    CASCADE: deleted with its category (the app also deletes it, as SQLite doesn't
+    enforce foreign keys here).
+    """
+
+    __tablename__ = "targets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE"), unique=True
+    )
+    kind: Mapped[str] = mapped_column(String(12))
+    amount: Mapped[int] = mapped_column(BigInteger)  # positive minor units
+    # BY_DATE only: the month (the 1st) the balance should be reached by. NULL otherwise.
+    month: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
 class ImportMapping(Base):
     """An account's import settings from last time, so the next import needs no mapping.
 
