@@ -1,11 +1,11 @@
 # TASK-M001: Targets and goals
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: M - Medium
 **Effort**: L - 1-2 weeks
 **Assigned**: Unassigned
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-09
 **Completed**:
 **Branch**: TASK-M001
 **Dependencies**: TASK-C001
@@ -56,6 +56,38 @@ Requirements:
 **Free to decide**: UI for setting targets, visual style of progress.
 
 **Ask first**: Adding more target types than the three above, behaviour of quick-assign when Ready to Assign is short.
+
+---
+
+## Agreed Plan (2026-11-09)
+
+Carel's decisions:
+1. **Ready to Assign short:** quick-assign assigns what's left. One category gets `min(needed, Ready to Assign)`. "Assign all" funds categories in budget order until Ready to Assign reaches £0, then stops and says which weren't fully funded. It never pushes Ready to Assign below £0.
+2. **Monthly amount = "set aside £X"**: assign £X every month, whatever rolled over. Leftovers build up.
+3. **Merge (H003):** if the category merged into has a target, keep it and drop the source's. If it has none, it takes the source's target.
+4. **Hidden categories** keep their targets, but "Assign all" skips them.
+
+Claude's calls:
+- Card payment categories (and the inflow category) can't have targets. Payment categories already show "needed".
+- **Ready to Assign cap = the lowest Ready to Assign from the month shown to the last month with income or assignments.** An assignment in October also reduces November's Ready to Assign. If November is lower, capping by October's figure alone would push November negative.
+- The schema has one target per category (unique `category_id`), with `ON DELETE CASCADE`. Delete paths also remove it themselves, because SQLite doesn't enforce foreign keys here.
+
+### The maths (pence; A = assigned this month, V = available at the end of the month)
+
+- **Monthly £X:** needs `max(0, X − A)`.
+  - £400 with A = 0: needs £400. A = 150: needs £250. A = 500: needs £0. Overspending or leftovers from earlier months make no difference.
+- **Balance £T:** needs `max(0, T − V)`.
+  - £3,000 with V = 1,200: needs £1,800.
+  - V = 3,000 from rollover alone: needs £0.
+  - Overspent, V = −50: needs £3,050.
+- **Balance £T by month D:** `start = V − A` (the balance before this month's assigning, after this month's activity). `left = months from the month shown to D, inclusive, at least 1`. `share = ceil((T − start) / left)`, and it needs `max(0, share − A)`.
+  - £1,200 by Jul 2027, viewing Nov 2026 with start £300: 9 months left, share £100. A = 0: needs £100. A = 40: needs £60.
+  - Viewing Jul 2027 with start £1,100: 1 month left, needs £100.
+  - Viewing Aug 2027 (D has passed), start £1,100: needs the whole £100.
+  - £1,000 over 3 months from 0: share £333.34 (rounded up to the penny).
+  - Start ≥ T: needs £0.
+
+Progress shown: monthly is A / X; the two balance types are V / T.
 
 ---
 
