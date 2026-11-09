@@ -5,9 +5,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..budget import account_balances, add_payment_category, category_in_use, inflow_category
+from ..budget import (
+    account_balances,
+    add_payment_category,
+    category_in_use,
+    cleared_balances,
+    inflow_category,
+)
 from ..deps import current_user, get_db, owned_account
-from ..models import CREDIT_CARD, Account, Category, ImportMapping, Transaction, User
+from ..models import CLEARED, CREDIT_CARD, Account, Category, ImportMapping, Transaction, User
 from ..money import parse_money
 from ..templating import render
 
@@ -35,6 +41,7 @@ def _page(request: Request, db: Session, user: User, error: str | None = None, s
         "active": "accounts",
         "accounts": [(a, b) for a, b in balances if not a.closed],
         "closed_accounts": [(a, b) for a, b in balances if a.closed],
+        "cleared": cleared_balances(db, user.id),
         "kinds": ACCOUNT_KINDS,
         "error": error,
     }
@@ -93,6 +100,7 @@ def add_account(
                 date=date.today(),
                 payee="Starting balance",
                 amount=balance,
+                status=CLEARED,  # what the bank showed when the account was added
             )
         )
     db.commit()

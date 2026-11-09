@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import category_options, transaction_fields %}
+{% from "_macros.html" import category_options, status_cell, transaction_fields %}
 {% block title %}Transactions{% endblock %}
 {% block content %}
 <h1>Transactions</h1>
@@ -58,13 +58,20 @@
 </form>
 {% endif %}
 
+{% if summary %}
+<p class="balances">Cleared <strong>{{ summary.cleared|money }}</strong>
+  · Uncleared <strong>{{ summary.uncleared|money }}</strong>
+  · Balance <strong>{{ summary.balance|money }}</strong>
+  · <a href="/accounts/{{ account_id }}/reconcile">Reconcile</a></p>
+{% endif %}
 {% if transactions %}
 <table class="list">
   <thead>
     <tr>
       <th scope="col">Date</th><th scope="col">Account</th><th scope="col">Payee</th>
       <th scope="col">Category</th><th scope="col">Memo</th>
-      <th scope="col" class="r">Outflow</th><th scope="col" class="r">Inflow</th><th scope="col"><span class="sr-only">Actions</span></th>
+      <th scope="col" class="r">Outflow</th><th scope="col" class="r">Inflow</th>
+      <th scope="col" title="Cleared"><abbr title="Cleared">C</abbr></th><th scope="col"><span class="sr-only">Actions</span></th>
     </tr>
   </thead>
   <tbody>
@@ -89,12 +96,15 @@
       <td>{{ t.memo }}</td>
       <td class="r">{% if t.amount < 0 %}{{ (-t.amount)|money }}{% endif %}</td>
       <td class="r">{% if t.amount > 0 %}{{ t.amount|money }}{% endif %}</td>
+      {{ status_cell(t, back) }}
       <td class="row-actions">
         <a href="/transactions/{{ t.id }}/edit{% if back %}?{{ {"back": back}|urlencode }}{% endif %}" aria-label="Edit transaction">Edit</a>
+        {% if t.status != "reconciled" and not (t.transfer and t.transfer.status == "reconciled") %}
         <form method="post" action="/transactions/{{ t.id }}/delete">
           <input type="hidden" name="back" value="{{ back }}">
           <button class="link danger" type="submit" aria-label="Delete transaction">Delete</button>
         </form>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}

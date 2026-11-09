@@ -171,6 +171,9 @@ def test_hand_entered_transactions_are_matched_not_doubled(client, db, account):
     db.expire_all()
     assert db.get(Transaction, typed.id).import_id == "2026-11-05:-1234:1"
     assert db.scalar(select(Transaction.id).where(Transaction.payee == "Tesco").offset(1)) is None
+    # The bank has confirmed both kinds: added rows and the matched typed-in one (TASK-M006).
+    assert {t.status for t in imported(db, account)} == {"cleared"}
+    assert db.get(Transaction, typed.id).status == "cleared"
     # The next import skips it as already imported.
     assert "4 imported before" in preview(client, account, SIGNED).text
 
@@ -323,3 +326,16 @@ def test_a_card_payment_becomes_a_transfer_and_the_bank_side_is_then_matched(cli
     assert "added=0&matched=1" in location
     db.expire_all()
     assert db.get(Transaction, bank_leg.id).import_id == "2026-11-05:-5000:1"
+
+
+def test_a_match_leaves_a_reconciled_transaction_reconciled(client, db, account):
+    client.post(
+        "/transactions",
+        data={"account_id": account.id, "when": "2026-11-04", "payee": "Tesco", "outflow": "12.34"},
+    )
+    typed = db.scalar(select(Transaction).where(Transaction.payee == "Tesco"))
+    typed.status = "reconciled"
+    db.commit()
+    confirm(client, account, SIGNED, add=[3, 4, 5])
+    db.expire_all()
+    assert db.get(Transaction, typed.id).status == "reconciled"

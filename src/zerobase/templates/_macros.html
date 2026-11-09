@@ -76,3 +76,20 @@
 <label>Outflow <input type="text" inputmode="decimal" name="outflow" placeholder="0.00" autocomplete="off" value="{{ v.outflow or '' }}"></label>
 <label>Inflow <input type="text" inputmode="decimal" name="inflow" placeholder="0.00" autocomplete="off" value="{{ v.inflow or '' }}"></label>
 {%- endmacro %}
+
+{# The cleared column of a transactions-list row. htmx swaps the whole cell after a toggle. #}
+{% macro status_cell(t, back) -%}
+<td class="status" id="status-{{ t.id }}">
+  {%- if t.status == "reconciled" %}<span title="Reconciled" aria-label="Reconciled">🔒</span>
+  {%- else %}
+  {%- set on = t.status == "cleared" %}
+  <form method="post" action="/transactions/{{ t.id }}/cleared"
+        hx-post="/transactions/{{ t.id }}/cleared" hx-target="#status-{{ t.id }}" hx-swap="outerHTML">
+    <input type="hidden" name="back" value="{{ back }}">
+    <button type="submit" class="link cleared-toggle{% if on %} on{% endif %}" aria-pressed="{{ 'true' if on else 'false' }}"
+            title="{{ 'Cleared: click to mark uncleared' if on else 'Uncleared: click to mark cleared' }}"
+            aria-label="Cleared">C</button>
+  </form>
+  {%- endif -%}
+</td>
+{%- endmacro %}

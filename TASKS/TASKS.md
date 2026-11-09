@@ -125,7 +125,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 | TASK-M003 | Spending and net-worth reports | M | TODO | Unassigned | TASK-H002 | Spending by category over time, income vs spending, net worth |
 | TASK-M004 | Trusted-proxy support for client addresses | S | TODO | Unassigned | None | Use the real client IP behind Caddy or another proxy so login throttling works per client |
 | TASK-M005 | Transaction list paging and search | S | DONE | Claude | None | Remove the silent 200-row cap; add paging and filters |
-| TASK-M006 | Cleared status and reconciliation | M | TODO | Unassigned | TASK-C001, TASK-H001 | Mark transactions cleared and reconcile accounts against the bank balance |
+| TASK-M006 | Cleared status and reconciliation | M | DONE | Claude | TASK-C001, TASK-H001 | Mark transactions cleared and reconcile accounts against the bank balance |
 
 ---
 

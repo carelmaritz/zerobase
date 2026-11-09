@@ -278,3 +278,38 @@ def test_0007_import_ids_are_unique_per_account_and_downgrade_keeps_transactions
         assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 6
     assert "import_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert "import_mappings" not in app_tables(engine)
+
+
+def test_0008_existing_transactions_start_uncleared_and_downgrade_keeps_them(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0007")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (user_id, name, kind, on_budget, closed) "
+                "SELECT id, 'A', 'checking', :t, :f FROM users"
+            ),
+            {"t": True, "f": False},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO transactions (user_id, account_id, date, payee, memo, amount) "
+                "SELECT user_id, id, '2026-11-01', '', '', -300 FROM accounts"
+            )
+        )
+
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        assert connection.execute(text("SELECT status FROM transactions")).scalar() == "uncleared"
+        assert connection.execute(text("SELECT reconciled_on FROM accounts")).scalar() is None
+        connection.execute(text("UPDATE transactions SET status = 'reconciled'"))
+        connection.execute(text("UPDATE accounts SET reconciled_on = '2026-11-08'"))
+        command.downgrade(alembic_config(connection), "0007")
+        assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 1
+    assert "status" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "reconciled_on" not in {c["name"] for c in inspect(engine).get_columns("accounts")}

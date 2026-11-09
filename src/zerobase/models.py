@@ -38,6 +38,11 @@ class User(Base):
 
 CREDIT_CARD = "credit_card"  # Account.kind of a credit card: always a budget account
 
+# Transaction.status: seen on a bank statement (cleared), and then confirmed against the
+# bank's balance and locked (reconciled). See TASK-M006.
+UNCLEARED, CLEARED, RECONCILED = "uncleared", "cleared", "reconciled"
+STATUSES = (UNCLEARED, CLEARED, RECONCILED)
+
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -51,6 +56,8 @@ class Account(Base):
     # Closed accounts (zero balance) drop out of the pickers and the main list, but their
     # history still counts.
     closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # When the cleared balance was last confirmed against the bank's. NULL: never.
+    reconciled_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     @property
     def is_credit_card(self) -> bool:
@@ -133,6 +140,7 @@ class Transaction(Base):
     # Set on imported transactions (and on hand-entered ones an import matched): see
     # ``importer``. NULL for anything typed in and never matched.
     import_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default=UNCLEARED, server_default=UNCLEARED)
 
     account: Mapped[Account] = relationship()
     category: Mapped[Category | None] = relationship()

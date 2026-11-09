@@ -6,9 +6,19 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..budget import inflow_category
+from ..budget import account_balances, cleared_balances, inflow_category
 from ..deps import current_user, get_db, owned_account, owned_category, owned_transaction
-from ..models import Account, Category, CategoryGroup, Transaction, User
+from ..models import (
+    CLEARED,
+    RECONCILED,
+    STATUSES,
+    UNCLEARED,
+    Account,
+    Category,
+    CategoryGroup,
+    Transaction,
+    User,
+)
 from ..money import parse_money, plain_money
 from ..templating import render
 from ..transaction_list import UNCATEGORISED, ListFilters, load_page
@@ -43,6 +53,12 @@ def _page(
 ):
     page = load_page(db, user.id, filters)
     account_id = filters.account_id
+    summary = None
+    if account_id is not None:
+        balance = dict((a.id, b) for a, b in account_balances(db, user.id)).get(account_id)
+        if balance is not None:  # one of this user's accounts
+            cleared = cleared_balances(db, user.id).get(account_id, 0)
+            summary = {"cleared": cleared, "uncleared": balance - cleared, "balance": balance}
     context = {
         "user": user,
         "active": "transactions",
@@ -51,6 +67,7 @@ def _page(
         "newer_url": page.newer.url() if page.newer else None,
         **_pickers(db, user),
         "filters": filters,
+        "summary": summary,
         "uncategorised": UNCATEGORISED,
         "back": filters.query_string(),
         "account_id": account_id,
@@ -274,6 +291,8 @@ def _edit_page(
         "user": user,
         "active": "transactions",
         "transaction": transaction,
+        "locked": _locked(transaction),
+        "statuses": STATUSES,
         **_pickers(db, user),
         "values": values,
         "back": ListFilters.from_back(back).query_string(),
@@ -292,9 +311,14 @@ def edit_transaction_form(
     user: User = Depends(current_user),
 ):
     transaction = owned_transaction(db, user, transaction_id)
+    return _edit_page(request, db, user, transaction, _values_of(transaction), back)
+
+
+def _values_of(transaction: Transaction) -> dict:
+    """The edit form's fields, filled from a saved transaction."""
     other = transaction.transfer
     amount = transaction.amount
-    values = {
+    return {
         "account_id": transaction.account_id,
         "transfer_account_id": other.account_id if other else None,
         "when": transaction.date.isoformat(),
@@ -304,8 +328,20 @@ def edit_transaction_form(
         "category_id": transaction.category_id or (other.category_id if other else None),
         "outflow": plain_money(-amount) if amount < 0 else "",
         "inflow": plain_money(amount) if amount > 0 else "",
+        "status": transaction.status,
     }
-    return _edit_page(request, db, user, transaction, values, back)
+
+
+def _locked(transaction: Transaction) -> bool:
+    """Reconciled, on either side of a transfer: changing it needs a confirmation."""
+    other = transaction.transfer
+    return transaction.status == RECONCILED or (other is not None and other.status == RECONCILED)
+
+
+LOCKED_ERROR = (
+    "This transaction is reconciled: it matched the bank's balance. "
+    "Tick “Yes, change a reconciled transaction” to change or delete it."
+)
 
 
 @router.post("/transactions/{transaction_id}/edit")
@@ -314,31 +350,63 @@ def edit_transaction(
     transaction_id: int,
     form: TransactionForm = Depends(_form),
     back: str = Form(""),
+    status: str = Form(""),
+    confirm_reconciled: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     transaction = owned_transaction(db, user, transaction_id)
+    status = status if status in STATUSES else transaction.status
+    values = {**form.values(), "status": status}
+    if _locked(transaction) and confirm_reconciled != "1":
+        return _edit_page(request, db, user, transaction, values, back, LOCKED_ERROR, 400)
     valid = _validate(db, user, form, existing=transaction)
     if isinstance(valid, str):
-        return _edit_page(request, db, user, transaction, form.values(), back, valid, 400)
+        return _edit_page(request, db, user, transaction, values, back, valid, 400)
     _save(db, user, valid, transaction)
+    transaction.status = status
     db.commit()
     return _back_to(back)
 
 
 @router.post("/transactions/{transaction_id}/delete")
 def delete_transaction(
+    request: Request,
     transaction_id: int,
     back: str = Form(""),
+    confirm_reconciled: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     transaction = db.get(Transaction, transaction_id)
     if transaction is not None and transaction.user_id == user.id:
+        if _locked(transaction) and confirm_reconciled != "1":
+            values = _values_of(transaction)
+            return _edit_page(request, db, user, transaction, values, back, LOCKED_ERROR, 400)
         if transaction.transfer is not None:  # a transfer goes as a whole
             db.delete(transaction.transfer)
         db.delete(transaction)
         db.commit()
+    return _back_to(back)
+
+
+@router.post("/transactions/{transaction_id}/cleared")
+def toggle_cleared(
+    request: Request,
+    transaction_id: int,
+    back: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Uncleared ↔ cleared. A reconciled row is changed on its edit page, with confirmation."""
+    transaction = owned_transaction(db, user, transaction_id)
+    if transaction.status == RECONCILED:
+        raise HTTPException(status_code=400, detail="Reconciled: change it on its edit page")
+    transaction.status = UNCLEARED if transaction.status == CLEARED else CLEARED
+    db.commit()
+    if request.headers.get("hx-request"):
+        context = {"t": transaction, "back": ListFilters.from_back(back).query_string()}
+        return render(request, "_status_cell.html", context)
     return _back_to(back)
 
 

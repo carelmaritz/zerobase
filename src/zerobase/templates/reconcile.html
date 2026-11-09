@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Reconcile {{ account.name }}{% endblock %}
+{% block content %}
+<h1>Reconcile {{ account.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if request.query_params.get("done") %}
+<p class="notice" role="status">Reconciled. {{ account.name }}'s cleared balance matches the bank's.</p>
+{% endif %}
+
+<p>Cleared <strong>{{ cleared|money }}</strong>
+  · Uncleared <strong>{{ uncleared|money }}</strong>
+  · Balance <strong>{{ (cleared + uncleared)|money }}</strong></p>
+<p class="muted">Last reconciled: {{ account.reconciled_on.isoformat() if account.reconciled_on else "never" }}.
+  {{ to_reconcile }} cleared transaction{{ "" if to_reconcile == 1 else "s" }} not yet reconciled.</p>
+
+{% if difference is not none %}
+<section class="card">
+  <h2>It doesn't match</h2>
+  <p>The bank says <strong>{{ (cleared + difference)|money }}</strong>, but the cleared balance here is
+    <strong>{{ cleared|money }}</strong>: a difference of <strong>{{ difference|money }}</strong>.</p>
+  <p class="muted">Check for a transaction you haven't marked cleared, or one that's missing or mistyped.
+    If you can't find it, add an adjustment for the difference.
+    {% if account.on_budget %}It goes in Inflow: Ready to Assign, so Ready to Assign {{ "rises" if difference > 0 else "falls" }} by {{ difference|abs|money }}.
+    {% else %}It has no category, since this is a tracking account.{% endif %}</p>
+  <form method="post" action="/accounts/{{ account.id }}/reconcile">
+    <input type="hidden" name="bank_balance" value="{{ bank }}">
+    <input type="hidden" name="adjust" value="1">
+    <button type="submit" class="primary">Create adjustment and reconcile</button>
+    <a href="/transactions?account_id={{ account.id }}">Look at the transactions first</a>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>What does the bank say?</h2>
+  <form method="post" action="/accounts/{{ account.id }}/reconcile" class="grid-form">
+    <label>Bank balance <input type="text" inputmode="decimal" name="bank_balance" required autocomplete="off"
+      value="{{ bank }}" placeholder="{{ cleared|plain }}"></label>
+    <button type="submit" class="primary">Reconcile</button>
+  </form>
+  <p class="muted">Enter today's balance from your bank, as a negative number if you owe it (a card or an overdraft).
+    If it matches the cleared balance, every cleared transaction is marked reconciled.</p>
+</section>
+<p><a href="/transactions?account_id={{ account.id }}">View transactions</a> · <a href="/accounts/{{ account.id }}/edit">Manage {{ account.name }}</a></p>
+{% endblock %}
