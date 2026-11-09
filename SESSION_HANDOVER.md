@@ -1,18 +1,18 @@
-# Session Handover — 2026-11-08 — M005 (transaction paging and filters) done and merged; CT 161 on main
+# Session Handover — 2026-11-09 — M006 (cleared status and reconciliation) done and merged; CT 161 on main
 
 ## Current state
 
-All verified on 2026-11-08.
+All verified on 2026-11-09.
 
-- **`main` at `4f6348d`** ("Merge TASK-M005"), plus the commit that updated this handover. Pushed. 205 tests pass on SQLite and PostgreSQL 16; ruff is clean.
-- **Branches:** `TASK-H003` to `TASK-H006` and `TASK-M005` are all fully merged and pushed. Delete them only if Carel asks.
+- **`main` at `718a2e3`** ("Merge TASK-M006"), plus the commit that updated this handover. Pushed. 220 tests pass on SQLite and PostgreSQL 16; ruff is clean.
+- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005` and `TASK-M006` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, **M005**.
-  - **Next:** nothing chosen yet. Pick from `TASKS/TASKS.md` with Carel.
-- **Database schema head: revision `0007`** (`0007_imports.py`). M005 added no migration.
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, **M006**.
+  - **Next, in the order Carel set:** **M001** (targets and goals), then **M002** (scheduled transactions). **Carel wants to discuss M002 before it's implemented.** HTTPS is on hold, at Carel's request.
+- **Database schema head: revision `0008`** (`0008_reconciliation.py`).
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **`main` (`4f6348d`)**. App and database are healthy, and the database is at `0007`.
+  - Runs **`main` (`718a2e3`)**. App and database are healthy, and the database is at `0008`.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
   - **Data after Carel's testing** (all deliberate):
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", Groceries hidden, the Needs group deleted (its categories moved to Bills).
@@ -20,35 +20,37 @@ All verified on 2026-11-08.
     - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current, £10 refund to Dining out.
     - **H006 test import into Current account (account 1):** 18 rows with `import_id`, net +£2,280.88. 10 were added (transactions 54–63, uncategorised). 8 existing ones were stamped: 35–39 and the transfer legs 44, 47 and 51.
     - **Paging Test (account 6):** a checking account created as a **budget** account by mistake. Carel chose to keep it as test data. It holds a 150-row made-up CSV import (1 Sep–20 Oct, memos "Paging test 001"–"150", netting to £0). From M005 testing: row 90 (−£33.26) was deleted, so 149 rows and a balance of +£33.26 remain, and row 151 (Greggs −£73.50, 30 Sep) was categorised as Utilities. `import_mappings` has rows for accounts 1 and 6.
+    - **M006 testing:** on Current account, rows 24, 51 and 54 are **reconciled**, and `reconciled_on` is 2026-11-09. Row 51 (the card payment) was edited from −£30 to **−£35**, and its other side, row 52 on Visa_Starling, followed. Mortgage also has `reconciled_on` 2026-11-09 but no reconciled rows. Every adjustment Carel made (rows 214–217) was deleted again. Every other row is uncleared.
     - **Ready to Assign:** October **£1,268.30**, November and December **£768.30**. Uncategorised: 154 (Oct), 160 (Nov). The −£46.70 since H006 is row 151 overspending Utilities in September, which is the overspending rule, not a bug.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
   - **Backups** in `/opt/zerobase/backups/`:
-    - The latest is `zerobase-20261108-192406.sql.gz`, taken just before deploying `main` with M005 (schema `0007`).
+    - The latest is `zerobase-20261109-155529.sql.gz`, taken after M006 testing, just before deploying `main`.
+    - `zerobase-20261108-194449.sql.gz` is from before M006 (schema `0007`), and `zerobase-20261108-192406.sql.gz` from before M005.
     - `zerobase-20261108-120033.sql.gz` is from before the Paging Test import, and `zerobase-20261107-155225.sql.gz` from before H006 (schema `0006`).
 
 ## Completed this session
 
-1. **TASK-H006 (CSV and OFX import), DONE**, merged as `181b0fa`. Details are in `TASKS/TASK-H006.md`.
-   - "Debit Amount" / "Credit Amount" headers are guessed as money out and in (`6324b95`).
-   - Carel imported a made-up 18-row CSV and re-imported it, with the database checked after each. A real bank download hasn't been tried.
-   - **Fix after DONE (`4640564`, merged with M005):** when a CSV's header doesn't match the saved one, the mapping page now starts from a fresh guess instead of the saved columns. Before, the saved columns could be out of range ("Choose both a money out and a money in column").
-2. **TASK-M005 (transaction paging and filters), DONE**, merged as `4f6348d`. Plan and details are in `TASKS/TASK-M005.md`.
-   - **`src/zerobase/transaction_list.py`:** `ListFilters`, `filtered()` and `load_page()`. Keyset paging on `(date, id)`, 100 a page, with Newer/Older links. Filters: `account_id`, `category` (an ID or `none`), `from`, `to`, `q`.
-   - Forms carry a hidden `back` query string, so add, edit, delete and the category save return to the same filtered page. The budget's "Categorise them" links to `?category=none&to=<month end>`.
-   - Tests are in `tests/test_transaction_list.py`. Carel tested it all on CT 161.
-3. **"Checking" is shown as "Current account"** (`bce7335`). Label only; the stored `kind` value is still `checking`.
+1. **TASK-M006 (cleared status and reconciliation), DONE**, merged as `718a2e3`. Plan and details are in `TASKS/TASK-M006.md`.
+   - **Migration `0008`:** `transactions.status` (`uncleared`, `cleared` or `reconciled`; the constants are in `models.py`) and `accounts.reconciled_on`.
+   - **"C" toggle** on the list: `POST /transactions/{id}/cleared`, swapped by htmx. **Cleared, uncleared and balance** on Accounts and on the list when it's filtered to one account (`budget.cleared_balances()`).
+   - **Reconcile page:** `routers/reconcile.py`. A difference gets one "Reconciliation balance adjustment" transaction: in Inflow (Ready to Assign) on a budget account, with no category on a tracking account (Carel's decision).
+   - **Reconciled rows:** editing or deleting them needs the `confirm_reconciled` tick. Imported rows start cleared (Carel's decision). New starting balances also start cleared (Claude's call, like YNAB).
+   - Carel tested every step on CT 161, with the database checked after each.
+2. Earlier in this session: H006 (CSV and OFX import) and M005 (paging and filters) were finished and merged, and "checking" is now shown as "Current account". See their task files.
 
 ## Next steps
 
-1. **Pick the next task with Carel** from `TASKS/TASKS.md`, or one of the open items below. Plan it with the `task-planning` skill before coding.
-2. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
+1. **TASK-M001 (targets and goals):** read `TASKS/TASK-M001.md`, agree a plan with Carel (`task-planning` skill), then branch `TASK-M001`.
+2. **TASK-M002 (scheduled transactions):** **discuss it with Carel before writing any code**; they asked for that. Open questions include when due rows are entered (on page load, or by a job), how to edit a single occurrence or the whole series, and what happens to missed dates.
+3. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
 
 ## Open decisions
 
 - **QIF import:** only if Carel's bank offers QIF rather than OFX (H006 decision 7).
 - **Inline category picker on transfer legs:** the budget leg of a budget↔tracking transfer still offers "Uncategorised" in the list's inline picker. If chosen, the leg is just flagged as uncategorised. It's recorded in the task file; fix it only if Carel wants it.
 - **HTTPS.** The deployment is plain HTTP. Options are Home_Web_Games' proxy01 or the bundled Caddy. Not started; do it before real use, especially now that it's reachable over the VPN.
+- **HTTPS is on hold** at Carel's request (2026-11-09).
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
 
 ## Failed approaches
@@ -71,6 +73,13 @@ All verified on 2026-11-08.
   - Redirects after a POST go through `ListFilters.from_back(back).url()`. Never redirect to a raw `back` value: that would be an open redirect.
   - `/transactions` reads its query string by hand (`from` is a Python keyword), and bad values are dropped, not refused.
   - The add-account form ticks "Budget account" by default, and it can't be changed later. Tell Carel to untick it for a test account.
+- **Reconciliation (M006):**
+  - The cleared balance counts `cleared` and `reconciled`. On an existing account whose rows are all uncleared, including the starting balance, it's £0. So a reconcile there turns the whole bank balance into the adjustment. Clear the rows first.
+  - The reconcile difference is worked out again on every POST, so posting twice can't add two adjustments.
+  - `_locked()` checks **both** sides of a transfer. Each side has its own status.
+  - The CSP allows no inline JavaScript, so confirmations are server-side ticks (`confirm_reconciled=1`), not `confirm()` dialogs.
+  - On a reconciled row, the inline category picker needs no tick. That's deliberate.
+  - `parse_money("-114,34")` reads the comma as a thousands separator (−£11,434.00). That's fine for UK users, but worth knowing for European formats.
 - **Imports (H006):**
   - **Mapping guess:** an out/in pair of columns is looked for before a single amount column. Keep it that way: bank headers like "Debit Amount" contain the word "amount".
   - **File text between steps:** it travels in a hidden form field. The routes read their own form through `import_form`, with a 4 MB field limit; Starlette's default is 1 MB, and decoded Windows-1252 text can be longer than the upload. Uploads are capped at 1 MB (`importer.MAX_BYTES`).
