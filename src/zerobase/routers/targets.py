@@ -82,13 +82,14 @@ def target_form(
     category = _editable_category(db, user, category_id)
     selected = _month(month)
     target = _target(db, category)
-    values = {"kind": "monthly", "amount": "", "by_month": "", "by_year": ""}
+    values = {"kind": "monthly", "amount": "", "by_month": "", "by_year": "", "repeats": False}
     if target is not None:
         values = {
             "kind": target.kind,
             "amount": plain_money(target.amount),
             "by_month": str(target.month.month) if target.month else "",
             "by_year": str(target.month.year) if target.month else "",
+            "repeats": target.repeats,
         }
     return _page(request, user, category, selected, values, existing=target)
 
@@ -102,13 +103,20 @@ def save_target(
     amount: str = Form(""),
     by_month: str = Form(""),
     by_year: str = Form(""),
+    repeats: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     category = _editable_category(db, user, category_id)
     selected = _month(month)
     target = _target(db, category)
-    values = {"kind": kind, "amount": amount, "by_month": by_month, "by_year": by_year}
+    values = {
+        "kind": kind,
+        "amount": amount,
+        "by_month": by_month,
+        "by_year": by_year,
+        "repeats": repeats == "1",
+    }
 
     error = None
     by = parse_month(f"{by_year}-{by_month}", NO_MONTH) if kind == BY_DATE else None
@@ -131,6 +139,7 @@ def save_target(
         target = Target(user_id=user.id, category_id=category.id)
         db.add(target)
     target.kind, target.amount, target.month = kind, minor, by
+    target.repeats = kind == BY_DATE and repeats == "1"
     db.commit()
     return _back(selected)
 

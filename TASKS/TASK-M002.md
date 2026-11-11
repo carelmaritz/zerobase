@@ -33,11 +33,11 @@ Rent, salary and subscriptions repeat on predictable dates. Entering them by han
 - UI: list of scheduled transactions; add/edit/delete; "upcoming" section on the transactions page; "enter now" and "skip next".
 
 ### Success Criteria
-- [ ] A monthly schedule produces exactly one transaction per month, including after the app was off for several months (catches up)
-- [ ] Two concurrent requests don't double-enter
-- [ ] Month-end dates handled (31st -> 28/29/30)
-- [ ] Skip and enter-now work
-- [ ] Migration up/down tested
+- [x] A monthly schedule produces exactly one transaction per month, including after the app was off for several months (catches up)
+- [x] Two concurrent requests don't double-enter
+- [x] Month-end dates handled (31st -> 28/29/30)
+- [x] Skip and enter-now work
+- [x] Migration up/down tested
 
 ### Out of Scope
 
@@ -106,18 +106,39 @@ The tick when the category already has a different target: the form says it will
 ## Implementation Plan
 
 ### Phase 1
-- [ ] Pure date-recurrence function (next occurrence after a date) with thorough unit tests
-- [ ] Migration and model
+- [x] Pure date-recurrence function (next occurrence after a date) with thorough unit tests
+- [x] Migration and model
 
 ### Phase 2
-- [ ] Idempotent materialisation (e.g. row lock on the schedule, or a unique key on schedule + occurrence date)
-- [ ] CRUD UI and upcoming list
+- [x] Idempotent materialisation (e.g. row lock on the schedule, or a unique key on schedule + occurrence date)
+- [x] CRUD UI and upcoming list
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+2026-11-11 (branch `TASK-M002`):
+- **Migration `0010`:**
+  - The `scheduled_transactions` table.
+  - `transactions.schedule_id` and `scheduled_for`, unique together (`uq_transactions_schedule_occurrence`).
+  - `targets.repeats`.
+- **Dates:** `schedules.following()` and `occurrences()`, tested in `tests/test_schedule_dates.py`. The units are `once`, `week`, `month` and `year`, each × `interval`.
+- **Shared code:** `entry.py` now holds the transaction form's checks and save (`validate_transaction`, `save_transaction`), moved out of `routers/transactions.py` so schedules enter rows the same way.
+- **Entering:**
+  - `schedules.enter_due()` runs from `deps.current_user` on every authenticated request.
+  - Each schedule gets a `FOR UPDATE` lock and a savepoint. Dates already entered are passed over; the unique key catches only a true race (tested on PostgreSQL with two sessions).
+  - Paused schedules (closed account) stay due.
+  - The notice uses the session key `scheduled_entered`. It's shown by `templating.render` on the next full page.
+- **Scheduled page:** `routers/scheduled.py`, `scheduled.html`, `scheduled_edit.html` and `_schedule_fields.html`. "Enter now" dates the row today, with `scheduled_for` set to the due date. There's a "Scheduled" link in the top bar.
+- **Upcoming:** on the transactions page, the next 30 days (`schedules.upcoming()`), filtered to the account when the list is.
+- **Categories and accounts:** `category_in_use()` counts schedules, and `merge_category()` moves them. Deleting an account deletes its schedules (either side), through `delete_schedule()`, which clears `schedule_id` on rows already entered.
+- **Annual bills:**
+  - `budget.target_due()`, and `underfunded(..., repeats=, activity=)`. Tested in `tests/test_target_maths.py`.
+  - The target form has "Repeat every year". The budget shows "by Mar 2027 (every year)".
+  - On yearly schedules, the "Save up" tick calls `schedules.apply_save_up()` on save.
+- **Tests:** `tests/test_schedules.py`, plus the `0010` test in `tests/test_migrations.py`.
+
+Bug found in Claude's own review before testing: editing a schedule's next date back past rows it had already entered would have hit the unique key on every request, so the schedule would never move on. Fixed by passing over dates already entered, with a test.
 
 ---
 
@@ -130,16 +151,16 @@ None yet.
 ## Testing
 
 ### Test Cases
-- [ ] Recurrence: monthly on 31st across Feb in leap and non-leap years; weekly across year end
-- [ ] Catch-up after 3 missed months
-- [ ] Schedule for a closed account (TASK-H004): pause, don't enter
-- [ ] Scheduled transfer creates both legs (if TASK-H002 is done)
+- [x] Recurrence: monthly on 31st across Feb in leap and non-leap years; weekly across year end
+- [x] Catch-up after 3 missed months
+- [x] Schedule for a closed account (TASK-H004): pause, don't enter
+- [x] Scheduled transfer creates both legs (if TASK-H002 is done)
 
 ---
 
 ## Known Issues & Gotchas
 
-- [ ] "Today" depends on timezone; the server's date may differ from the user's. Decide on server-local date for now and note it.
+- [x] "Today" depends on timezone; the server's date may differ from the user's. Decide on server-local date for now and note it.
 
 ---
 

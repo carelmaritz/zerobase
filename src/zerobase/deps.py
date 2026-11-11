@@ -1,9 +1,13 @@
 from collections.abc import Iterator
+from datetime import date
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from .models import Account, Category, Transaction, User
+
+# Session key: scheduled transactions entered since the last full page was shown.
+ENTERED_KEY = "scheduled_entered"
 
 
 class NotAuthenticated(Exception):
@@ -21,6 +25,13 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None:
         request.session.clear()
         raise NotAuthenticated
+    # Scheduled transactions are entered when the user next opens the app (TASK-M002).
+    from .schedules import enter_due  # here: schedules → entry → deps would be circular
+
+    entered = enter_due(db, user.id, date.today())
+    if entered:
+        db.commit()
+        request.session[ENTERED_KEY] = request.session.get(ENTERED_KEY, 0) + entered
     return user
 
 
