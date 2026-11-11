@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import available, line_note, num, rta %}
+{% from "_macros.html" import assign_input, available, line_note, num, rta, target_note, underfunded_bar %}
 {% block title %}Budget{% endblock %}
 {% block content %}
 <div class="month-nav">
@@ -11,6 +11,7 @@
 <div id="flash" role="alert">{% if error %}<p class="error">{{ error }}</p>{% endif %}</div>
 
 {{ rta(view) }}
+{{ underfunded_bar(view, month_key) }}
 
 {% if view.uncategorised_count %}
 <p class="notice">
@@ -37,14 +38,13 @@
     </tr>
     {% for line in block.lines %}
     <tr>
-      <th scope="row">{{ line.category.name }}{{ line_note(line) }}</th>
+      <th scope="row">{{ line.category.name }}{{ line_note(line) }}{{ target_note(line, month_key) }}</th>
       <td class="r">
         <form class="assign" method="post" action="/budget/assign"
               hx-post="/budget/assign" hx-trigger="change, submit" hx-swap="none">
           <input type="hidden" name="category_id" value="{{ line.category.id }}">
           <input type="hidden" name="month" value="{{ month_key }}">
-          <input class="amt" type="text" inputmode="decimal" name="amount" autocomplete="off"
-                 value="{{ line.assigned|plain }}" aria-label="Assigned to {{ line.category.name }}">
+          {{ assign_input(line) }}
         </form>
       </td>
       <td class="r">{{ num("act-" ~ line.category.id, line.activity) }}</td>

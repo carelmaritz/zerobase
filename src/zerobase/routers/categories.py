@@ -11,12 +11,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..budget import build_budget, category_in_use, merge_category, month_start
 from ..deps import current_user, get_db, owned_category
-from ..models import Category, CategoryGroup, User
+from ..models import Category, CategoryGroup, Target, User
 from ..templating import render
 from .budget import clean_name
 
@@ -242,6 +242,8 @@ def delete_category(
         error = "This category has transactions or assignments. Choose where they should go."
         return _delete_page(request, db, user, category, error=error, status=400)
     else:
+        # SQLite doesn't enforce the CASCADE, so the target goes explicitly.
+        db.execute(delete(Target).where(Target.category_id == category.id))
         db.delete(category)
     db.commit()
     return _back()

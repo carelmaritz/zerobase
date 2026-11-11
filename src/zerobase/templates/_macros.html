@@ -93,3 +93,45 @@
   {%- endif -%}
 </td>
 {%- endmacro %}
+
+{# A line's assigned amount, edited in place. Swapped out of band only after a quick-assign
+   (a button press), never after typing, so focus isn't lost while tabbing. #}
+{% macro assign_input(line, oob=False) -%}
+<input id="assign-{{ line.category.id }}" class="amt" type="text" inputmode="decimal" name="amount" autocomplete="off"
+       value="{{ line.assigned|plain }}" aria-label="Assigned to {{ line.category.name }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+{%- endmacro %}
+
+{# A category's target: progress, what it still needs this month, and a quick-assign button.
+   Card payment categories take no target. #}
+{% macro target_note(line, month_key, oob=False) -%}
+<small id="target-{{ line.category.id }}" class="target-note"{% if oob %} hx-swap-oob="true"{% endif %}>
+{%- set t = line.target %}
+{%- if t %}
+  {%- if t.kind == "monthly" %}{% set have = line.assigned %}{% else %}{% set have = line.available %}{% endif %}
+  <progress max="{{ t.amount }}" value="{{ [0, [have, t.amount]|min]|max }}" aria-hidden="true"></progress>
+  {{ have|money }} of {{ t.amount|money }}
+  {%- if t.kind == "monthly" %} this month{% elif t.kind == "by_date" %} by {{ t.month.strftime("%b %Y") }}{% endif %}
+  {%- if line.underfunded %} · needs {{ line.underfunded|money }}
+  <form class="fund" method="post" action="/budget/fund" hx-post="/budget/fund" hx-swap="none">
+    <input type="hidden" name="category_id" value="{{ line.category.id }}">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <button type="submit" class="link">Assign {{ line.underfunded|money }}</button>
+  </form>
+  {%- else %} · funded{% endif %}
+  · <a href="/categories/{{ line.category.id }}/target?month={{ month_key }}">Edit target</a>
+{%- elif line.category.kind == "standard" %}
+  <a href="/categories/{{ line.category.id }}/target?month={{ month_key }}" class="muted">Set a target</a>
+{%- endif %}</small>
+{%- endmacro %}
+
+{# The month's total underfunded, with "Assign all". Hidden categories aren't included. #}
+{% macro underfunded_bar(view, month_key, oob=False) -%}
+<div id="underfunded" class="underfunded"{% if oob %} hx-swap-oob="true"{% endif %}>
+{%- if view.underfunded %}
+  Underfunded this month: <strong>{{ view.underfunded|money }}</strong>
+  <form class="fund" method="post" action="/budget/fund-all" hx-post="/budget/fund-all" hx-swap="none">
+    <input type="hidden" name="month" value="{{ month_key }}">
+    <button type="submit">Assign all underfunded</button>
+  </form>
+{%- endif %}</div>
+{%- endmacro %}

@@ -148,6 +148,20 @@ tbody th[scope="row"] { font-weight: 400; }
 .num.credit { color: var(--credit-fg); }
 .line-note { display: block; color: var(--muted); font-weight: normal; font-size: .8rem; }
 .line-note:empty { display: none; }
+/* Targets (TASK-M001) */
+.target-note { display: block; color: var(--muted); font-weight: normal; font-size: .8rem; }
+.target-note:empty { display: none; }
+.target-note progress { width: 4rem; height: .5rem; vertical-align: middle; accent-color: var(--accent); }
+form.fund { display: inline; }
+.underfunded { margin: -.5rem 0 1rem; }
+.underfunded:empty { display: none; }
+.grid-form fieldset { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: grid; gap: .25rem; }
+.grid-form .choice { display: flex; gap: .5rem; align-items: center; color: var(--text); }
+.by-month { display: flex; gap: .5rem; }
+/* Month and year only once "by a month" is chosen; browsers without :has() always show them. */
+@supports selector(:has(*)) {
+  .grid-form:not(:has(input[name="kind"][value="by_date"]:checked)) .by-fields { display: none; }
+}
 
 form.assign { margin: 0; }
 .row-actions { display: flex; gap: .75rem; align-items: center; white-space: nowrap; }

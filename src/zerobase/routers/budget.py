@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..budget import add_months, build_budget, month_start, parse_month
+from ..budget import CategoryLine, add_months, build_budget, fund, month_start, parse_month
 from ..deps import current_user, get_db, owned_category
 from ..models import Assignment, Category, CategoryGroup, User
 from ..money import parse_money
@@ -103,11 +103,70 @@ def assign(
 
     if request.headers.get("hx-request"):
         # Only the numbers change; the inputs stay put so tabbing between rows keeps focus.
-        context = {"view": build_budget(db, user.id, selected), "error": error}
-        return render(request, "_budget_oob.html", context)
+        return _oob(request, db, user, selected, error)
     if error:
         return _page(request, db, user, selected, error, 400)
     return _back(selected)
+
+
+def _oob(request: Request, db: Session, user: User, month: date, error, *, inputs=False):
+    context = {
+        "view": build_budget(db, user.id, month),
+        "month_key": f"{month:%Y-%m}",
+        "error": error,
+        "inputs": inputs,
+    }
+    return render(request, "_budget_oob.html", context)
+
+
+def _fund(request: Request, db: Session, user: User, month: date, lines: list[CategoryLine]):
+    """Quick-assign ``lines``' underfunded amounts, within Ready to Assign (TASK-M001)."""
+    short = fund(db, user.id, month, lines)
+    db.commit()
+    error = None
+    if short:
+        names = ", ".join(line.category.name for line in short)
+        error = (
+            "Ready to Assign (this month or a later one) ran out before these were fully "
+            f"funded: {names}."
+        )
+    if request.headers.get("hx-request"):
+        return _oob(request, db, user, month, error, inputs=True)
+    if error:
+        return _page(request, db, user, month, error, 400)
+    return _back(month)
+
+
+@router.post("/budget/fund")
+def fund_category(
+    request: Request,
+    category_id: int = Form(...),
+    month: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    category = owned_category(db, user, category_id)
+    if category.kind != "standard":
+        raise HTTPException(status_code=404, detail="Category not found")
+    selected = _month_param(month)
+    view = build_budget(db, user.id, selected)
+    lines = [
+        line
+        for line in [*view.hidden, *(ln for block in view.groups for ln in block.lines)]
+        if line.category.id == category.id and line.underfunded
+    ]
+    return _fund(request, db, user, selected, lines)
+
+
+@router.post("/budget/fund-all")
+def fund_all(
+    request: Request,
+    month: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    selected = _month_param(month)
+    return _fund(request, db, user, selected, build_budget(db, user.id, selected).fundable())
 
 
 def clean_name(name: str) -> str | None:
