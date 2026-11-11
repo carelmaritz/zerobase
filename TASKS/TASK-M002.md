@@ -80,6 +80,29 @@ Claude's calls (free to decide):
   - An "Upcoming" section on the transactions page with the next 30 days.
   - Plain styling (back end first).
 
+### Annual bills in the budget (Carel, 2026-11-11)
+
+Carel subscribes to Dropbox and Amazon Prime yearly and wants the budget to save up for them.
+
+Carel's decisions:
+- **A yearly repeating target and a shortcut on schedules.**
+  - The by-month target (M001) gets **"repeat every year"** (`targets.repeats`). This was out of scope in M001; Carel has now asked for it.
+  - A yearly schedule with a category gets a **"Save up for this in [category]"** tick (`scheduled_transactions.save_up`). Saving the schedule with it ticked creates or replaces that category's target: by a month, repeating, with the amount set to the schedule's outflow and the month set to the month of its next due date.
+- **One category per annual bill** (e.g. "Dropbox", "Amazon Prime"). A category keeps at most one target; no change to M001's design.
+
+The maths for a repeating target (pence). T is the amount, D the target month of the year, and the month shown is m:
+- `due` = the first month ≥ m that falls in month D. `left` = months from m to `due`, inclusive (1 to 12).
+- `start` = the balance at the **start** of m, before this month's assigning and spending (`V − A − activity`). Non-repeating by-month targets use `V − A`. The difference means paying the bill in its due month doesn't make the category look underfunded again.
+- `share = ceil((T − start) / left)`, and it needs `max(0, share − A)`.
+- Examples:
+  - Dropbox £120 due in March, viewed in April with £0: due next March, 12 months left, needs £10.
+  - Viewed in March with £110 carried in: needs £10.
+  - In March, after paying £120: `start` is still £110 and A = £10, so it needs £0.
+  - Viewed in April after paying: the balance is £0, so it needs £10 again (12 months to the next March).
+- **Known edge:** if the bill is paid a month early (posted in February for a March renewal), March's `start` drops and March shows the whole amount as needed. That's acceptable; fix it only if it bites.
+
+The tick when the category already has a different target: the form says it will be replaced.
+
 ## Implementation Plan
 
 ### Phase 1
