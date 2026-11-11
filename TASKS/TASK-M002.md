@@ -1,11 +1,11 @@
 # TASK-M002: Scheduled and recurring transactions
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: M - Medium
 **Effort**: L - 1-2 weeks
 **Assigned**: Unassigned
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-11
 **Completed**:
 **Branch**: TASK-M002
 **Dependencies**: TASK-C001
@@ -55,6 +55,31 @@ Rent, salary and subscriptions repeat on predictable dates. Entering them by han
 
 ---
 
+## Agreed Plan (2026-11-11)
+
+Carel's decisions:
+1. **Timing:** due schedules are entered when the user opens the app. That happens at the start of any authenticated request, with a cheap check on the earliest `next_due`. There's no background job and no second container.
+2. **Editing:** editing a schedule changes every future occurrence. Rows already entered are ordinary transactions, edited one at a time. For a one-off difference, use "Enter now" and then edit the row, or "Skip next". There's no per-occurrence exceptions table.
+3. **Missed dates:** each one is entered with its own due date (3 missed months → 3 rows). A notice says "N scheduled transactions entered".
+4. **Status:** entered rows start uncleared (M006).
+
+Settled by the task file or follow from earlier tasks:
+- **Budget:** future schedules don't affect the budget, Ready to Assign or M001's `assign_cap()` until entered.
+- **Closed account:** a schedule on a closed account (either side of a transfer) is paused. It isn't entered, and it isn't advanced.
+- **Transfers:** a scheduled transfer enters both legs through the existing transfer code. The category goes on the budget leg only, as now.
+- **"Today":** the server's local date (UK on CT 161).
+- **"Once":** a one-off schedule is deleted after it's entered.
+- **Imports:** entered rows have no `import_id`, so H006's likely-match rule can stamp them, avoiding duplicates.
+
+Claude's calls (free to decide):
+- **No double entry:** `transactions` gets `schedule_id` (SET NULL) and `scheduled_for` (the occurrence date), with a unique key on (`schedule_id`, `scheduled_for`). The rows are inserted and `next_due` advanced in one database transaction. If a concurrent request gets there first, the unique key fails, and that request rolls back and moves on.
+- **Frequencies:** once, weekly, every 2 weeks, monthly, every N months, yearly. Monthly and yearly keep the original day (`day_of_month`) and use the month's last day when it doesn't exist (31st → 30th → 28th or 29th → back to the 31st).
+- **Catch-up is capped** at 100 occurrences per schedule per request, so a weekly schedule set in 1990 can't flood a single request. The rest is entered on the next request.
+- **UI:**
+  - A "Scheduled" page to list, add, edit and delete schedules, with "Enter now" and "Skip next".
+  - An "Upcoming" section on the transactions page with the next 30 days.
+  - Plain styling (back end first).
+
 ## Implementation Plan
 
 ### Phase 1
@@ -103,4 +128,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-11 by Claude*
