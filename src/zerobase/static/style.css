@@ -158,6 +158,10 @@ form.fund { display: inline; }
 .grid-form fieldset { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: grid; gap: .25rem; }
 .grid-form .choice { display: flex; gap: .5rem; align-items: center; color: var(--text); }
 .by-month { display: flex; gap: .5rem; }
+/* Month and year only once "by a month" is chosen; browsers without :has() always show them. */
+@supports selector(:has(*)) {
+  .grid-form:not(:has(input[name="kind"][value="by_date"]:checked)) .by-fields { display: none; }
+}
 
 form.assign { margin: 0; }
 .row-actions { display: flex; gap: .75rem; align-items: center; white-space: nowrap; }
