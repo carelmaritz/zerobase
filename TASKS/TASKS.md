@@ -120,7 +120,7 @@ Task state lives in two places, and duplicated state drifts. The rule:
 
 | Task ID | Title | Effort | Status | Assignee | Dependencies | Description |
 |---------|-------|--------|--------|----------|--------------|-------------|
-| TASK-M001 | Targets and goals | L | IN_PROGRESS | Unassigned | TASK-C001 | Per-category targets with underfunded amounts and quick-assign |
+| TASK-M001 | Targets and goals | L | DONE | Unassigned | TASK-C001 | Per-category targets with underfunded amounts and quick-assign |
 | TASK-M002 | Scheduled and recurring transactions | L | TODO | Unassigned | TASK-C001 | Repeating transactions that are entered automatically when due |
 | TASK-M003 | Spending and net-worth reports | M | TODO | Unassigned | TASK-H002 | Spending by category over time, income vs spending, net worth |
 | TASK-M004 | Trusted-proxy support for client addresses | S | TODO | Unassigned | None | Use the real client IP behind Caddy or another proxy so login throttling works per client |

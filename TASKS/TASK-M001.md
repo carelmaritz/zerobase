@@ -1,12 +1,12 @@
 # TASK-M001: Targets and goals
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: L - 1-2 weeks
 **Assigned**: Unassigned
 **Created**: 2026-10-21
 **Started**: 2026-11-09
-**Completed**:
+**Completed**: 2026-11-11
 **Branch**: TASK-M001
 **Dependencies**: TASK-C001
 
@@ -114,6 +114,19 @@ Progress shown: monthly is A / X; the two balance types are V / T.
 - **Budget page:** each line has a progress bar with "£A of £T", "needs £X" and an "Assign £X" button, or a "Set a target" link. Above the table is "Underfunded this month" with "Assign all underfunded".
 - **Quick-assign:** `POST /budget/fund` (one category) and `POST /budget/fund-all`, via `budget.fund()` and `budget.assign_cap()`. The htmx response is `_budget_oob.html` with `inputs=True`, so the assigned inputs are swapped too.
 - **Tests:** `tests/test_targets.py`, plus the `0009` test in `tests/test_migrations.py`.
+
+Fixes from Carel's testing:
+- The "by" month was an `<input type="month">`, which Carel's browser couldn't type into or pick from. It's now two dropdowns, Month and Year (this year plus ten).
+- At Carel's suggestion, the month and year fields show only when "by a month" is chosen. This is CSS `:has()`, not JavaScript; browsers without `:has()` always show the fields.
+
+**Tested by Carel on CT 161 (2026-11-10 to 11), with the database checked after each step:**
+- Monthly target and quick-assign.
+- Balance targets: already funded, raised above the balance, and on an overspent category.
+- By-month target: £133.34 a month over 9 months.
+- Assign all stopping at Ready to Assign £0.
+- October blocked by November's £0 (the later-month limit).
+- Removing a target.
+- Merge: the destination category's target is kept.
 
 Hidden categories: a hidden category's target stays, but the budget's hidden table shows no target or button. Unhide the category to fund it (as for assigning).
 
