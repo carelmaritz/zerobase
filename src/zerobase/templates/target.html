@@ -14,7 +14,19 @@
       {% endfor %}
     </fieldset>
     <label>Amount <input type="text" inputmode="decimal" name="amount" autocomplete="off" placeholder="0.00" value="{{ v.amount }}" required></label>
-    <label>By month (only for "by a month") <input type="month" name="by" value="{{ v.by }}"></label>
+    <fieldset>
+      <legend>By (only for "by a month")</legend>
+      <div class="by-month">
+        <select name="by_month" aria-label="Month">
+          <option value="">Month</option>
+          {% for name in months %}<option value="{{ loop.index }}"{% if v.by_month == loop.index|string %} selected{% endif %}>{{ name }}</option>{% endfor %}
+        </select>
+        <select name="by_year" aria-label="Year">
+          <option value="">Year</option>
+          {% for year in years %}<option value="{{ year }}"{% if v.by_year == year|string %} selected{% endif %}>{{ year }}</option>{% endfor %}
+        </select>
+      </div>
+    </fieldset>
     <button type="submit" class="primary">Save target</button>
   </form>
 </section>

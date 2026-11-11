@@ -157,6 +157,7 @@ form.fund { display: inline; }
 .underfunded:empty { display: none; }
 .grid-form fieldset { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: grid; gap: .25rem; }
 .grid-form .choice { display: flex; gap: .5rem; align-items: center; color: var(--text); }
+.by-month { display: flex; gap: .5rem; }
 
 form.assign { margin: 0; }
 .row-actions { display: flex; gap: .75rem; align-items: center; white-space: nowrap; }

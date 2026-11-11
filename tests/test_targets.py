@@ -37,11 +37,10 @@ def budget(client, db):
 
 
 def set_target(client, category, kind, amount, by="", month=THIS_MONTH):
-    return client.post(
-        f"/categories/{category}/target",
-        data={"kind": kind, "amount": amount, "by": by, "month": month},
-        follow_redirects=False,
-    )
+    """``by`` is "YYYY-MM", sent as the form's separate year and month dropdowns."""
+    year, _, by_month = by.partition("-")
+    data = {"kind": kind, "amount": amount, "by_year": year, "by_month": by_month, "month": month}
+    return client.post(f"/categories/{category}/target", data=data, follow_redirects=False)
 
 
 def assign(client, category, amount, month=THIS_MONTH):
@@ -150,6 +149,10 @@ def test_set_edit_and_remove_a_target(client, db, budget):
 
     by = f"{add_months(MONTH, 3):%Y-%m}"
     set_target(client, groceries, "by_date", "800", by=by)
+    form = client.get(f"/categories/{groceries}/target?month={THIS_MONTH}").text
+    picked = add_months(MONTH, 3)
+    assert f'<option value="{picked.month}" selected>{picked:%B}</option>' in form
+    assert f'<option value="{picked.year}" selected>{picked.year}</option>' in form
     db.expire_all()
     target = db.scalar(select(Target))
     assert (target.kind, target.amount, target.month) == ("by_date", 800_00, add_months(MONTH, 3))
