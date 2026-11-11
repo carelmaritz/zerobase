@@ -2,7 +2,7 @@
 
 ## Current state
 
-All verified on 2026-11-09.
+All verified on 2026-11-11.
 
 - **`main` at `c2f7af7`** ("Merge TASK-M001"), plus the commit that updated this handover. Pushed. 264 tests pass on SQLite. On PostgreSQL 16 they passed at `f63af0a`; the two later commits (target-page dropdowns and CSS) weren't run there. Ruff is clean.
 - **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006` and `TASK-M001` are all fully merged and pushed. Delete them only if Carel asks.
@@ -17,7 +17,7 @@ All verified on 2026-11-09.
   - **Data after Carel's testing** (all deliberate):
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", and the Needs group deleted (its categories moved to Bills). Groceries is visible again (Carel unhid it before M001 testing). **Dining out (category 9) was merged into Groceries** in M001 testing: its assignments were added into Groceries' (September is now £540, October £520) and its transactions moved there.
     - Accounts: Savings changed to type Other, and **Savings is closed**. A £1,800 transfer Savings → Current (transactions 46/47) emptied it first. Savings' starting balance (transaction 3) has the payee "Starting odd" from an edit test.
-    - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current, £10 refund to Dining out.
+    - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current (edited to £35 in M006), £10 refund to Dining out. Since the M001 merge, both Dining out rows are in Groceries.
     - **H006 test import into Current account (account 1):** 18 rows with `import_id`, net +£2,280.88. 10 were added (transactions 54–63, uncategorised). 8 existing ones were stamped: 35–39 and the transfer legs 44, 47 and 51.
     - **Paging Test (account 6):** a checking account created as a **budget** account by mistake. Carel chose to keep it as test data. It holds a 150-row made-up CSV import (1 Sep–20 Oct, memos "Paging test 001"–"150", netting to £0). From M005 testing: row 90 (−£33.26) was deleted, so 149 rows and a balance of +£33.26 remain, and row 151 (Greggs −£73.50, 30 Sep) was categorised as Utilities. `import_mappings` has rows for accounts 1 and 6.
     - **M006 testing:** on Current account, rows 24, 51 and 54 are **reconciled**, and `reconciled_on` is 2026-11-09. Row 51 (the card payment) was edited from −£30 to **−£35**, and its other side, row 52 on Visa_Starling, followed. Mortgage also has `reconciled_on` 2026-11-09 but no reconciled rows. Every adjustment Carel made (rows 214–217) was deleted again. Every other row is uncleared.
