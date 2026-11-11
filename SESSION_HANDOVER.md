@@ -1,49 +1,59 @@
-# Session Handover — 2026-11-09 — M006 (cleared status and reconciliation) done and merged; CT 161 on main
+# Session Handover — 2026-11-11 — M001 (targets and goals) done and merged; CT 161 on main; next: discuss M002
 
 ## Current state
 
 All verified on 2026-11-09.
 
-- **`main` at `718a2e3`** ("Merge TASK-M006"), plus the commit that updated this handover. Pushed. 220 tests pass on SQLite and PostgreSQL 16; ruff is clean.
-- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005` and `TASK-M006` are all fully merged and pushed. Delete them only if Carel asks.
+- **`main` at `c2f7af7`** ("Merge TASK-M001"), plus the commit that updated this handover. Pushed. 264 tests pass on SQLite. On PostgreSQL 16 they passed at `f63af0a`; the two later commits (target-page dropdowns and CSS) weren't run there. Ruff is clean.
+- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006` and `TASK-M001` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, **M006**.
-  - **Next, in the order Carel set:** **M001** (targets and goals), then **M002** (scheduled transactions). **Carel wants to discuss M002 before it's implemented.** HTTPS is on hold, at Carel's request.
-- **Database schema head: revision `0008`** (`0008_reconciliation.py`).
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, M006, **M001**.
+  - **Next:** **M002** (scheduled transactions). **Carel wants to discuss it before any code is written.** HTTPS is on hold, at Carel's request.
+- **Database schema head: revision `0009`** (`0009_targets.py`).
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **`main` (`718a2e3`)**. App and database are healthy, and the database is at `0008`.
+  - Runs **`main` (`c2f7af7`)**. App and database are healthy, and the database is at `0009`.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
   - **Data after Carel's testing** (all deliberate):
-    - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", Groceries hidden, the Needs group deleted (its categories moved to Bills).
+    - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", and the Needs group deleted (its categories moved to Bills). Groceries is visible again (Carel unhid it before M001 testing). **Dining out (category 9) was merged into Groceries** in M001 testing: its assignments were added into Groceries' (September is now £540, October £520) and its transactions moved there.
     - Accounts: Savings changed to type Other, and **Savings is closed**. A £1,800 transfer Savings → Current (transactions 46/47) emptied it first. Savings' starting balance (transaction 3) has the payee "Starting odd" from an edit test.
     - **Card `Visa_Starling`** (account 5, payment category 15), test transactions 48–53: -£500 starting debt, £30 on Dining out, £200 on Transport, £30 payment from Current, £10 refund to Dining out.
     - **H006 test import into Current account (account 1):** 18 rows with `import_id`, net +£2,280.88. 10 were added (transactions 54–63, uncategorised). 8 existing ones were stamped: 35–39 and the transfer legs 44, 47 and 51.
     - **Paging Test (account 6):** a checking account created as a **budget** account by mistake. Carel chose to keep it as test data. It holds a 150-row made-up CSV import (1 Sep–20 Oct, memos "Paging test 001"–"150", netting to £0). From M005 testing: row 90 (−£33.26) was deleted, so 149 rows and a balance of +£33.26 remain, and row 151 (Greggs −£73.50, 30 Sep) was categorised as Utilities. `import_mappings` has rows for accounts 1 and 6.
     - **M006 testing:** on Current account, rows 24, 51 and 54 are **reconciled**, and `reconciled_on` is 2026-11-09. Row 51 (the card payment) was edited from −£30 to **−£35**, and its other side, row 52 on Visa_Starling, followed. Mortgage also has `reconciled_on` 2026-11-09 but no reconciled rows. Every adjustment Carel made (rows 214–217) was deleted again. Every other row is uncleared.
-    - **Ready to Assign:** October **£1,268.30**, November and December **£768.30**. Uncategorised: 154 (Oct), 160 (Nov). The −£46.70 since H006 is row 151 overspending Utilities in September, which is the overspending rule, not a bug.
+    - **M001 testing:**
+      - Targets: Groceries is monthly £400 (category 6), Emergency fund a £4,500 balance (12), and Holidays £1,200 by July 2027 (13). Transport's target was removed.
+      - New November assignments: Groceries £400 (row 27), Holidays £133.34 (28), Transport £180.90 (29), Emergency fund £54.06 (30).
+    - **Ready to Assign:** October **£1,268.30**, November and December **£0.00**. The quick-assign limit is £0 in every month, because November is £0. Uncategorised: 154 (Oct), 160 (Nov). The −£46.70 since H006 is row 151 overspending Utilities in September, which is the overspending rule, not a bug.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
   - **Backups** in `/opt/zerobase/backups/`:
-    - The latest is `zerobase-20261109-155529.sql.gz`, taken after M006 testing, just before deploying `main`.
+    - The latest is `zerobase-20261109-192409.sql.gz`, taken just before M001 was deployed (schema `0008`, before any targets).
+    - `zerobase-20261109-155529.sql.gz` is from after M006 testing.
     - `zerobase-20261108-194449.sql.gz` is from before M006 (schema `0007`), and `zerobase-20261108-192406.sql.gz` from before M005.
     - `zerobase-20261108-120033.sql.gz` is from before the Paging Test import, and `zerobase-20261107-155225.sql.gz` from before H006 (schema `0006`).
 
 ## Completed this session
 
-1. **TASK-M006 (cleared status and reconciliation), DONE**, merged as `718a2e3`. Plan and details are in `TASKS/TASK-M006.md`.
-   - **Migration `0008`:** `transactions.status` (`uncleared`, `cleared` or `reconciled`; the constants are in `models.py`) and `accounts.reconciled_on`.
-   - **"C" toggle** on the list: `POST /transactions/{id}/cleared`, swapped by htmx. **Cleared, uncleared and balance** on Accounts and on the list when it's filtered to one account (`budget.cleared_balances()`).
-   - **Reconcile page:** `routers/reconcile.py`. A difference gets one "Reconciliation balance adjustment" transaction: in Inflow (Ready to Assign) on a budget account, with no category on a tracking account (Carel's decision).
-   - **Reconciled rows:** editing or deleting them needs the `confirm_reconciled` tick. Imported rows start cleared (Carel's decision). New starting balances also start cleared (Claude's call, like YNAB).
+1. **TASK-M001 (targets and goals), DONE**, merged as `c2f7af7`. The plan, maths with worked examples, and details are in `TASKS/TASK-M001.md`.
+   - **Migration `0009`:** the `targets` table, one per category, CASCADE with the category. The `Target` model and the `MONTHLY`, `BALANCE` and `BY_DATE` constants are in `models.py`.
+   - **Maths:** `budget.underfunded()`. `build_budget()` fills in `line.target` and `line.underfunded`, and `view.underfunded` totals the visible lines.
+   - **Quick-assign:** `budget.fund()` and `budget.assign_cap()`, at `POST /budget/fund` and `POST /budget/fund-all`.
+   - **Target page:** `routers/targets.py`.
+   - **Carel's decisions:** quick-assign gives what's left; monthly means "set aside £X"; on a merge the destination's target wins; "Assign all" skips hidden categories.
+   - **Claude's call, accepted by Carel in testing:** the limit is the lowest Ready to Assign from the month shown onwards.
+   - **Fixes from testing:** the "by" month is now two dropdowns instead of `<input type="month">`, and they show only for "by a month" (CSS `:has()`).
    - Carel tested every step on CT 161, with the database checked after each.
-2. Earlier in this session: H006 (CSV and OFX import) and M005 (paging and filters) were finished and merged, and "checking" is now shown as "Current account". See their task files.
 
 ## Next steps
 
-1. **TASK-M001 (targets and goals):** read `TASKS/TASK-M001.md`, agree a plan with Carel (`task-planning` skill), then branch `TASK-M001`.
-2. **TASK-M002 (scheduled transactions):** **discuss it with Carel before writing any code**; they asked for that. Open questions include when due rows are entered (on page load, or by a job), how to edit a single occurrence or the whole series, and what happens to missed dates.
-3. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
+1. **TASK-M002 (scheduled transactions):** **discuss it with Carel before writing any code**; they asked for that. Read `TASKS/TASK-M002.md` first. Open questions:
+   - When due rows are entered: on page load, or by a job.
+   - How to edit a single occurrence, or the whole series.
+   - What happens to missed dates.
+   - Whether future scheduled rows should count in `assign_cap()`.
+   Then agree a plan (`task-planning` skill) and branch `TASK-M002`.
+2. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
 
 ## Open decisions
 
@@ -51,6 +61,7 @@ All verified on 2026-11-09.
 - **Inline category picker on transfer legs:** the budget leg of a budget↔tracking transfer still offers "Uncategorised" in the list's inline picker. If chosen, the leg is just flagged as uncategorised. It's recorded in the task file; fix it only if Carel wants it.
 - **HTTPS.** The deployment is plain HTTP. Options are Home_Web_Games' proxy01 or the bundled Caddy. Not started; do it before real use, especially now that it's reachable over the VPN.
 - **HTTPS is on hold** at Carel's request (2026-11-09).
+- **Targets on hidden categories:** they're kept, but the budget's hidden table shows no target or button. Unhide the category to fund it. Change this only if Carel asks.
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
 
 ## Failed approaches
@@ -60,6 +71,9 @@ All verified on 2026-11-09.
 - **Creating PRs from here:** `gh` isn't installed and there's no token. Merge locally with `git merge --no-ff` and push after asking, or Carel merges on GitHub.
 - **Migration tests with explicit primary keys on PostgreSQL:** fixed IDs don't advance the sequence, so a later insert collides. Let the database assign IDs when anything inserts afterwards.
 - **Worry that RESTRICT breaks deleting a user (checked 2026-11-02, it doesn't):** on PostgreSQL 16, deleting a user still cascades through categories, accounts and transactions with RESTRICT foreign keys between them, and RESTRICT still blocks deleting a category directly. No need for NO ACTION instead, and no route deletes users anyway.
+- **`<input type="month">`:** Carel's browser couldn't type into it or open a picker. Use month and year `<select>`s (see `templates/target.html`).
+- **Several `docker compose exec -T` commands in one `ssh '…'` with a heredoc:** the first command reads the heredoc, so the Python one gets nothing and prints nothing. Add `</dev/null` to the psql command, or run them separately. Quotes inside `psql -c` within `sh -c` are fragile (`\x27` fails); `docker compose exec -T db psql -U zerobase -d zerobase -c "…'…'…"` works.
+- **Waiting on a background pytest run by grepping its output for "passed":** ruff's "All checks passed!" matches too. Wait for the PostgreSQL container to stop instead.
 - **Pushing to `main` without fetching:** rejected once. Always `git pull --ff-only` first.
 - **Tests: checking for `value="<id>"` across a whole page** gives false matches, because account and category IDs overlap. Slice out the specific `<select>` first, as `account_pickers()` in `tests/test_accounts.py` does.
 - **Tests:** reading `.id` on an ORM object whose row a request deleted raises `ObjectDeletedError` after `expire_all()`. Capture IDs before the request.
@@ -68,6 +82,13 @@ All verified on 2026-11-09.
 
 - **Task bookkeeping:** the task file is the source of truth. Any status change updates the task file **and** the `TASKS/TASKS.md` row in the same commit. One branch per task, named `TASK-XNNN`.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
+- **Targets (M001):**
+  - Only standard categories take targets: `build_budget` ignores any other, and the routes return 404.
+  - `assign_cap()` calls `build_budget` once per month, from the month shown to the latest assignment or transaction plus one, up to 24 months ahead. M002's future scheduled rows will make it look further ahead.
+  - The by-month share uses `V − A` (the balance before this month's assigning), so assigning part of it doesn't shrink the share.
+  - The assigned inputs are swapped by htmx only after a quick-assign (`inputs=True`), never after typing, so focus isn't lost.
+  - A new path that deletes categories must delete its `Target`, because SQLite doesn't enforce the CASCADE.
+  - The target form's month and year fields are shown or hidden with CSS `:has()`.
 - **Transaction list (M005):**
   - The `category=none` filter in `transaction_list.filtered()` copies `build_budget()`'s uncategorised rule. Change both together; a test compares them.
   - Redirects after a POST go through `ListFilters.from_back(back).url()`. Never redirect to a raw `back` value: that would be an open redirect.
