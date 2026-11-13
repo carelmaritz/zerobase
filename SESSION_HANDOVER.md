@@ -1,18 +1,18 @@
-# Session Handover — 2026-11-11 — M001 (targets and goals) done and merged; CT 161 on main; next: discuss M002
+# Session Handover — 2026-11-13 — M002 (scheduled transactions, yearly targets) done and merged; CT 161 on main; next: M003 or Carel's pick
 
 ## Current state
 
-All verified on 2026-11-11.
+All verified on 2026-11-13.
 
-- **`main` at `c2f7af7`** ("Merge TASK-M001"), plus the commit that updated this handover. Pushed. 264 tests pass on SQLite. On PostgreSQL 16 they passed at `f63af0a`; the two later commits (target-page dropdowns and CSS) weren't run there. Ruff is clean.
-- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006` and `TASK-M001` are all fully merged and pushed. Delete them only if Carel asks.
+- **`main` at `2039cd2`** ("Merge TASK-M002"), plus the commit that updated this handover. Pushed. At `03a1745` (the M002 code; later commits are docs only): 312 tests pass on SQLite (1 PostgreSQL-only test skipped), 313 on PostgreSQL 16. Ruff is clean.
+- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006`, `TASK-M001` and `TASK-M002` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, M006, **M001**.
-  - **Next:** **M002** (scheduled transactions). **Carel wants to discuss it before any code is written.** HTTPS is on hold, at Carel's request.
-- **Database schema head: revision `0009`** (`0009_targets.py`).
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, M006, M001, **M002**.
+  - **Next:** not chosen. TODO: M003 (reports), M004 (trusted proxy), L001 (form validation), L002 (export). Carel has liked discussing a task before code. HTTPS is on hold, at Carel's request.
+- **Database schema head: revision `0010`** (`0010_scheduled_transactions.py`).
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **`main` (`c2f7af7`)**. App and database are healthy, and the database is at `0009`.
+  - Runs **`main` (`2039cd2`)**. App and database are healthy, and the database is at `0010`.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
   - **Data after Carel's testing** (all deliberate):
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", and the Needs group deleted (its categories moved to Bills). Groceries is visible again (Carel unhid it before M001 testing). **Dining out (category 9) was merged into Groceries** in M001 testing: its assignments were added into Groceries' (September is now £540, October £520) and its transactions moved there.
@@ -24,35 +24,35 @@ All verified on 2026-11-11.
     - **M001 testing:**
       - Targets: Groceries is monthly £400 (category 6), Emergency fund a £4,500 balance (12), and Holidays £1,200 by July 2027 (13). Transport's target was removed.
       - New November assignments: Groceries £400 (row 27), Holidays £133.34 (28), Transport £180.90 (29), Emergency fund £54.06 (30).
-    - **Ready to Assign:** October **£1,268.30**, November and December **£0.00**. The quick-assign limit is £0 in every month, because November is £0. Uncategorised: 154 (Oct), 160 (Nov). The −£46.70 since H006 is row 151 overspending Utilities in September, which is the overspending rule, not a bug.
+    - **Ready to Assign after M001:** October £1,268.30, November and December £0.00. **Not rechecked after M002 testing** (the new spending below is all categorised, so it shouldn't move it). The −£46.70 since H006 is row 151 overspending Utilities in September, the overspending rule, not a bug.
+    - **M002 testing (2026-11-13):**
+      - Schedules: **Coffee** (id 2, weekly, Entertainment cat 10, −£3, next 4 Dec 2026) and **Dropbox** (id 3, yearly, new category **Dropbox** id 16 in Bills, −£119.88, next 3 Mar 2027, save up on). Phone Bill (id 1) was deleted.
+      - Target 6: Dropbox, `by_date` £119.88, Mar 2027, `repeats`.
+      - Rows: Phone Bill 218–220 (1 Sep/Oct/Nov, −£20, Phone & Internet cat 3, now unlinked), Coffee 221–223 (all dated 13 Nov, `scheduled_for` 13/20/27 Nov). A stray Dropbox row (224) was deleted by Carel. 216 transactions in total.
+      - Carel briefly added and deleted an empty group (6) while adding Dropbox.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
   - **Backups** in `/opt/zerobase/backups/`:
-    - The latest is `zerobase-20261109-192409.sql.gz`, taken just before M001 was deployed (schema `0008`, before any targets).
+    - The latest is `zerobase-20261113-084038.sql.gz`, after M002 testing, before deploying main.
+    - `zerobase-20261111-185029.sql.gz` is from before M002 was deployed (schema `0009`).
+    - `zerobase-20261109-192409.sql.gz` is from just before M001 was deployed (schema `0008`, before any targets).
     - `zerobase-20261109-155529.sql.gz` is from after M006 testing.
     - `zerobase-20261108-194449.sql.gz` is from before M006 (schema `0007`), and `zerobase-20261108-192406.sql.gz` from before M005.
     - `zerobase-20261108-120033.sql.gz` is from before the Paging Test import, and `zerobase-20261107-155225.sql.gz` from before H006 (schema `0006`).
 
 ## Completed this session
 
-1. **TASK-M001 (targets and goals), DONE**, merged as `c2f7af7`. The plan, maths with worked examples, and details are in `TASKS/TASK-M001.md`.
-   - **Migration `0009`:** the `targets` table, one per category, CASCADE with the category. The `Target` model and the `MONTHLY`, `BALANCE` and `BY_DATE` constants are in `models.py`.
-   - **Maths:** `budget.underfunded()`. `build_budget()` fills in `line.target` and `line.underfunded`, and `view.underfunded` totals the visible lines.
-   - **Quick-assign:** `budget.fund()` and `budget.assign_cap()`, at `POST /budget/fund` and `POST /budget/fund-all`.
-   - **Target page:** `routers/targets.py`.
-   - **Carel's decisions:** quick-assign gives what's left; monthly means "set aside £X"; on a merge the destination's target wins; "Assign all" skips hidden categories.
-   - **Claude's call, accepted by Carel in testing:** the limit is the lowest Ready to Assign from the month shown onwards.
-   - **Fixes from testing:** the "by" month is now two dropdowns instead of `<input type="month">`, and they show only for "by a month" (CSS `:has()`).
-   - Carel tested every step on CT 161, with the database checked after each.
+1. **TASK-M001 (targets and goals), DONE**, merged as `c2f7af7` on 2026-11-11. Details in `TASKS/TASK-M001.md`.
+2. **TASK-M002 (scheduled transactions), DONE**, merged as `2039cd2`. Agreed plan, annual-bill maths and work in `TASKS/TASK-M002.md`.
+   - **Migration `0010`:** `scheduled_transactions`; `transactions.schedule_id` + `scheduled_for` (unique together); `targets.repeats`.
+   - **Code:** `schedules.py` (dates, entering, upcoming, save-up), `entry.py` (transaction validation and save, shared with schedules), `routers/scheduled.py`, the Upcoming section on Transactions.
+   - **Carel's decisions:** entered when the app is opened (no job); editing changes all future occurrences; missed dates all entered with a notice; entered rows start uncleared; annual bills use a yearly repeating target, with a "Save up for this" tick on yearly schedules; one category per annual bill.
+   - **Claude's calls, kept by Carel:** unique key against double entry; the 31st falls back to the month's last day and returns; 100 catch-up occurrences per schedule per request; "Once" schedules are deleted after entering; closed accounts pause schedules; a Scheduled page plus 30-day Upcoming.
+   - Carel tested all five steps on CT 161 (iPad), database checked after each.
 
 ## Next steps
 
-1. **TASK-M002 (scheduled transactions):** **discuss it with Carel before writing any code**; they asked for that. Read `TASKS/TASK-M002.md` first. Open questions:
-   - When due rows are entered: on page load, or by a job.
-   - How to edit a single occurrence, or the whole series.
-   - What happens to missed dates.
-   - Whether future scheduled rows should count in `assign_cap()`.
-   Then agree a plan (`task-planning` skill) and branch `TASK-M002`.
+1. **Ask Carel which task is next** (M003, M004, L001, L002, or the follow-up below). Discuss before code; agree a plan (`task-planning` skill), then branch `TASK-XNNN`.
 2. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
 
 ## Open decisions
@@ -62,6 +62,8 @@ All verified on 2026-11-11.
 - **HTTPS.** The deployment is plain HTTP. Options are Home_Web_Games' proxy01 or the bundled Caddy. Not started; do it before real use, especially now that it's reachable over the VPN.
 - **HTTPS is on hold** at Carel's request (2026-11-09).
 - **Targets on hidden categories:** they're kept, but the budget's hidden table shows no target or button. Unhide the category to fund it. Change this only if Carel asks.
+- **New-schedule date defaults to today:** today counts as due, so saving enters the first row at once (Carel hit this with Dropbox). Works as agreed; a possible small follow-up (e.g. default to tomorrow, or warn). Only if Carel wants it.
+- **Coffee and Phone Bill test rows on CT 161:** Carel may want them removed; ask, don't delete.
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
 
 ## Failed approaches
@@ -84,11 +86,20 @@ All verified on 2026-11-11.
 - **Schema changes need a migration.** Add a new revision in `src/zerobase/migrations/versions/`; `test_upgrade_reaches_head_and_matches_the_models` catches drift.
 - **Targets (M001):**
   - Only standard categories take targets: `build_budget` ignores any other, and the routes return 404.
-  - `assign_cap()` calls `build_budget` once per month, from the month shown to the latest assignment or transaction plus one, up to 24 months ahead. M002's future scheduled rows will make it look further ahead.
+  - `assign_cap()` calls `build_budget` once per month, from the month shown to the latest assignment or transaction plus one, up to 24 months ahead. Schedules aren't rows until entered, so they don't extend it.
   - The by-month share uses `V − A` (the balance before this month's assigning), so assigning part of it doesn't shrink the share.
   - The assigned inputs are swapped by htmx only after a quick-assign (`inputs=True`), never after typing, so focus isn't lost.
   - A new path that deletes categories must delete its `Target`, because SQLite doesn't enforce the CASCADE.
   - The target form's month and year fields are shown or hidden with CSS `:has()`.
+- **Schedules (M002):**
+  - `enter_due()` runs inside `deps.current_user`, so **any authenticated request can enter rows**, including the POST under test. In tests, set up state (e.g. close the account) before creating the schedule.
+  - `deps.py` imports `schedules` inside the function: `schedules → entry → deps` would be circular.
+  - The "N entered" notice is a session counter, popped only by full pages (`templating.render`, names not starting with `_`).
+  - Each schedule enters in its own savepoint with a `FOR UPDATE` lock. Dates already entered are passed over, so editing the next date backwards doesn't wedge the schedule.
+  - "Enter now" dates the row **today**, with `scheduled_for` the due date.
+  - A new path that deletes accounts or categories must handle schedules: accounts go through `schedules.delete_schedule()`; `category_in_use()` counts schedules and `merge_category()` moves them.
+  - A repeating by-date target's December "needs" goes *up* when November wasn't funded (spread over fewer months). That's the design; Claude predicted it wrongly once in testing.
+  - "Today" is the server's local date.
 - **Transaction list (M005):**
   - The `category=none` filter in `transaction_list.filtered()` copies `build_budget()`'s uncategorised rule. Change both together; a test compares them.
   - Redirects after a POST go through `ListFilters.from_back(back).url()`. Never redirect to a raw `back` value: that would be an open redirect.
