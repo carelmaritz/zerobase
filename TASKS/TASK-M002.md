@@ -1,12 +1,12 @@
 # TASK-M002: Scheduled and recurring transactions
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: L - 1-2 weeks
 **Assigned**: Unassigned
 **Created**: 2026-10-21
 **Started**: 2026-11-11
-**Completed**:
+**Completed**: 2026-11-13
 **Branch**: TASK-M002
 **Dependencies**: TASK-C001
 
@@ -140,6 +140,15 @@ The tick when the category already has a different target: the form says it will
 
 Bug found in Claude's own review before testing: editing a schedule's next date back past rows it had already entered would have hit the unique key on every request, so the schedule would never move on. Fixed by passing over dates already entered, with a test.
 
+2026-11-13: Carel tested on CT 161 (iPad); all five steps were checked in the database.
+1. Monthly Phone Bill from 1 Sep caught up 3 rows (uncleared, linked by date).
+2. Weekly Coffee: Upcoming listed it; Enter now ×3 dated today with the right `scheduled_for`; Skip on Phone Bill moved Dec → Jan with no row.
+3. Yearly Dropbox £119.88 with Save up: target `by_date`, `repeats`, Mar 2027. November needs £23.98 (5 months); December £29.97 (4 months, November unfunded, as designed). Editing the next date moved the target date with it.
+4. Save up on a monthly schedule is refused with the message.
+5. Deleting Phone Bill kept its 3 rows, unlinked.
+
+Found while testing: a new schedule's date defaults to today, and today counts as due, so saving enters it at once (a stray Dropbox row this way, deleted by Carel). Works as agreed; a possible small follow-up.
+
 ---
 
 ## Failed Approaches
@@ -172,4 +181,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-11-11 by Claude*
+*Last Updated: 2026-11-13 by Claude*
