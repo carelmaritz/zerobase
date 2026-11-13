@@ -72,3 +72,43 @@ def test_by_date_share_stays_put_while_assigning_this_month():
         assert underfunded(BY_DATE, 1_000_00, jan, NOV_26, assigned, assigned) == max(
             0, 333_34 - assigned
         )
+
+
+# Repeating (yearly) by-month targets: TASK-M002's Dropbox example, £120 due in March.
+MAR_26, APR_26, FEB_27, MAR_27, APR_27 = (
+    date(2026, 3, 1),
+    date(2026, 4, 1),
+    date(2027, 2, 1),
+    date(2027, 3, 1),
+    date(2027, 4, 1),
+)
+
+
+def yearly(month, assigned, available, activity=0, by=MAR_26):
+    return underfunded(
+        BY_DATE, 120_00, by, month, assigned, available, repeats=True, activity=activity
+    )
+
+
+def test_repeating_target_rolls_on_to_next_year():
+    assert yearly(APR_26, 0, 0) == 10_00  # 12 months to March 2027
+    assert yearly(FEB_27, 0, 100_00) == 10_00  # £20 to go over 2 months
+    assert yearly(MAR_27, 0, 110_00) == 10_00  # due this month
+
+
+def test_paying_the_bill_in_its_month_doesnt_make_it_underfunded():
+    # £110 carried in, £10 assigned, the £120 renewal paid: £0 left, nothing needed.
+    assert yearly(MAR_27, 10_00, 0, activity=-120_00) == 0
+    assert yearly(APR_27, 0, 0) == 10_00  # and next year starts again
+
+
+def test_repeating_target_isnt_due_before_its_first_month():
+    # Set up for March 2028: seen from April 2026 that's 24 months away, not 12.
+    assert yearly(APR_26, 0, 0, by=date(2028, 3, 1)) == 5_00
+
+
+def test_one_off_target_still_counts_this_months_spending():
+    jul = date(2027, 7, 1)
+    # Not repeating: spending this month raises what's needed, as in M001.
+    needed = underfunded(BY_DATE, 120_00, jul, jul, 0, -20_00, activity=-20_00)
+    assert needed == 140_00

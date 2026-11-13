@@ -26,6 +26,7 @@
           {% for year in years %}<option value="{{ year }}"{% if v.by_year == year|string %} selected{% endif %}>{{ year }}</option>{% endfor %}
         </select>
       </div>
+      <label class="choice"><input type="checkbox" name="repeats" value="1"{% if v.repeats %} checked{% endif %}> Repeat every year (an annual bill)</label>
     </fieldset>
     <button type="submit" class="primary">Save target</button>
   </form>

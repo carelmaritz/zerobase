@@ -17,11 +17,16 @@
       <a href="/budget"{% if active == "budget" %} aria-current="page"{% endif %}>Budget</a>
       <a href="/accounts"{% if active == "accounts" %} aria-current="page"{% endif %}>Accounts</a>
       <a href="/transactions"{% if active == "transactions" %} aria-current="page"{% endif %}>Transactions</a>
+      <a href="/scheduled"{% if active == "scheduled" %} aria-current="page"{% endif %}>Scheduled</a>
     </nav>
     <form method="post" action="/logout"><button class="link" type="submit">Sign out</button></form>
   </header>
   {% endif %}
   <main class="container">
+    {% if scheduled_entered %}
+    <p class="notice" role="status">{{ scheduled_entered }} scheduled transaction{{ "" if scheduled_entered == 1 else "s" }} entered.
+      <a href="/transactions">See transactions</a>.</p>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </body>

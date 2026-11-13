@@ -24,6 +24,26 @@
 <p class="notice">All your accounts are closed. Reopen one on the <a href="/accounts">Accounts</a> page to record transactions.</p>
 {% endif %}
 
+{% if upcoming %}
+<details class="upcoming" open>
+  <summary>Upcoming in the next {{ upcoming_days }} days ({{ upcoming|length }})</summary>
+  <table class="list">
+    <tbody>
+      {% for due, s in upcoming %}
+      <tr>
+        <td>{{ due.day }} {{ due.strftime("%b") }}</td>
+        <td>{{ s.payee }}</td>
+        <td>{{ s.account.name }}{% if s.transfer_account %} → {{ s.transfer_account.name }}{% endif %}</td>
+        <td class="r">{{ s.amount|money }}</td>
+        <td><a href="/scheduled/{{ s.id }}/edit">Edit</a>{% if s.account.closed or (s.transfer_account and s.transfer_account.closed) %} <small class="muted">(paused)</small>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted"><a href="/scheduled">Manage scheduled transactions</a>. Upcoming ones don't count in the budget until they're entered.</p>
+</details>
+{% endif %}
+
 <form method="get" action="/transactions" class="filters grid-form" aria-label="Filter transactions">
   <label>Account
     <select name="account_id">

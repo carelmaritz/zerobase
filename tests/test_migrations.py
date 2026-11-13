@@ -345,3 +345,47 @@ def test_0009_targets_are_one_per_category_and_go_with_the_category(engine):
     with engine.begin() as connection:
         command.downgrade(alembic_config(connection), "0008")
     assert "targets" not in app_tables(engine)
+
+
+def test_0010_schedule_occurrences_are_unique_and_downgrade_keeps_transactions(engine):
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (user_id, name, kind, on_budget, closed) "
+                "SELECT id, 'A', 'checking', :t, :f FROM users"
+            ),
+            {"t": True, "f": False},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO scheduled_transactions (user_id, account_id, payee, memo, amount, "
+                "unit, interval, day, next_due) "
+                "SELECT user_id, id, 'Rent', '', -500, 'month', 1, 1, '2026-12-01' FROM accounts"
+            )
+        )
+        assert connection.execute(text("SELECT save_up FROM scheduled_transactions")).scalar() in (
+            False,
+            0,
+        )
+        insert = text(
+            "INSERT INTO transactions (user_id, account_id, date, payee, memo, amount, "
+            "schedule_id, scheduled_for) "
+            "SELECT user_id, account_id, '2026-11-01', '', '', -500, id, '2026-11-01' "
+            "FROM scheduled_transactions"
+        )
+        connection.execute(insert)
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(insert)
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0009")
+        assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 1
+    assert "scheduled_transactions" not in app_tables(engine)
+    assert "schedule_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
+    assert "repeats" not in {c["name"] for c in inspect(engine).get_columns("targets")}

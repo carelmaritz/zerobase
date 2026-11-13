@@ -2,7 +2,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..budget import (
@@ -13,8 +13,18 @@ from ..budget import (
     inflow_category,
 )
 from ..deps import current_user, get_db, owned_account
-from ..models import CLEARED, CREDIT_CARD, Account, Category, ImportMapping, Transaction, User
+from ..models import (
+    CLEARED,
+    CREDIT_CARD,
+    Account,
+    Category,
+    ImportMapping,
+    ScheduledTransaction,
+    Transaction,
+    User,
+)
 from ..money import parse_money
+from ..schedules import delete_schedule
 from ..templating import render
 
 router = APIRouter()
@@ -228,9 +238,18 @@ def delete_account(
             )
             return _edit_page(request, db, user, account, error, 400)
         db.delete(payment)
-    # Its saved import settings go too (SQLite doesn't enforce the CASCADE here).
+    # Its saved import settings and schedules go too (SQLite doesn't enforce the CASCADE).
     for saved in db.scalars(select(ImportMapping).where(ImportMapping.account_id == account.id)):
         db.delete(saved)
+    for schedule in db.scalars(
+        select(ScheduledTransaction).where(
+            or_(
+                ScheduledTransaction.account_id == account.id,
+                ScheduledTransaction.transfer_account_id == account.id,
+            )
+        )
+    ):
+        delete_schedule(db, schedule)
     db.flush()  # the category and settings refer to the account
     db.delete(account)
     db.commit()

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import transaction_fields %}
+{% block title %}Edit scheduled transaction{% endblock %}
+{% block content %}
+<h1>Edit scheduled transaction</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% if paused %}<p class="notice">Paused: an account it uses is closed. Reopen it on the Accounts page to change or resume this schedule.</p>{% endif %}
+
+<section class="card">
+  <form method="post" action="/scheduled/{{ schedule.id }}/edit" class="grid-form">
+    {{ transaction_fields(accounts, categories, inflow, values, date_label="Next date") }}
+    {% include "_schedule_fields.html" %}
+    <button type="submit" class="primary">Save</button>
+  </form>
+  <p class="muted">Changes apply to every future occurrence. Transactions already entered stay as they are: edit those on the Transactions page.</p>
+</section>
+
+<section class="card">
+  <form method="post" action="/scheduled/{{ schedule.id }}/delete">
+    <button type="submit">Delete this schedule</button>
+  </form>
+  <p class="muted">Transactions it already entered are kept.</p>
+</section>
+<p><a href="/scheduled">Back to scheduled transactions</a></p>
+{% endblock %}

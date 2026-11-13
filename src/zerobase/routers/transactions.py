@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import date
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -7,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..budget import account_balances, cleared_balances, inflow_category
-from ..deps import current_user, get_db, owned_account, owned_category, owned_transaction
+from ..deps import current_user, get_db, owned_category, owned_transaction
+from ..entry import TransactionForm, save_transaction, transaction_form, validate_transaction
 from ..models import (
     CLEARED,
     RECONCILED,
@@ -19,11 +19,14 @@ from ..models import (
     Transaction,
     User,
 )
-from ..money import parse_money, plain_money
+from ..money import plain_money
+from ..schedules import upcoming
 from ..templating import render
 from ..transaction_list import UNCATEGORISED, ListFilters, load_page
 
 router = APIRouter()
+
+UPCOMING_DAYS = 30  # how far ahead the list's Upcoming section looks (TASK-M002)
 
 
 def _pickers(db: Session, user: User) -> dict:
@@ -72,6 +75,8 @@ def _page(
         "back": filters.query_string(),
         "account_id": account_id,
         "values": values or {"account_id": account_id, "when": date.today().isoformat()},
+        "upcoming": upcoming(db, user.id, date.today(), UPCOMING_DAYS, account_id),
+        "upcoming_days": UPCOMING_DAYS,
         "error": error,
     }
     return render(request, "transactions.html", context, status_code=status)
@@ -87,172 +92,6 @@ def transactions_page(
     return _page(request, db, user, ListFilters.from_params(request.query_params))
 
 
-@dataclass
-class TransactionForm:
-    """The raw fields of the add and edit forms, as submitted."""
-
-    account_id: int
-    when: str
-    payee: str = ""
-    memo: str = ""
-    category_id: str = ""
-    outflow: str = ""
-    inflow: str = ""
-    transfer_account_id: str = ""
-
-    def values(self) -> dict:
-        """The submitted values, for re-showing the form after an error."""
-        return {
-            **vars(self),
-            "category_id": _optional_id(self.category_id),
-            "transfer_account_id": _optional_id(self.transfer_account_id),
-        }
-
-
-def _optional_id(value: str) -> int | None:
-    value = value.strip()
-    return int(value) if value.isdigit() else None
-
-
-def _form(
-    account_id: int = Form(...),
-    when: str = Form(...),
-    payee: str = Form(""),
-    memo: str = Form(""),
-    category_id: str = Form(""),
-    outflow: str = Form(""),
-    inflow: str = Form(""),
-    transfer_account_id: str = Form(""),
-) -> TransactionForm:
-    return TransactionForm(
-        account_id, when, payee, memo, category_id, outflow, inflow, transfer_account_id
-    )
-
-
-@dataclass
-class ValidTransaction:
-    account_id: int
-    category_id: int | None
-    date: date
-    payee: str
-    memo: str
-    amount: int
-    # For a transfer: the other account, and the category of the leg there.
-    transfer_account_id: int | None = None
-    transfer_category_id: int | None = None
-
-
-def _validate(
-    db: Session, user: User, form: TransactionForm, existing: Transaction | None = None
-) -> ValidTransaction | str:
-    """Check a submitted add or edit form. Returns the clean fields, or an error message.
-
-    A foreign account or category ID raises a 404, as everywhere else. For a transfer, the
-    amount is from this account's side; the other leg gets the opposite. A closed account
-    is refused unless ``existing`` (the transaction being edited) already uses it.
-    """
-    account = owned_account(db, user, form.account_id)
-    transfer = None
-    if form.transfer_account_id.strip():
-        try:
-            transfer = owned_account(db, user, int(form.transfer_account_id))
-        except ValueError:
-            return "Choose a valid account to transfer to or from."
-        if transfer.id == account.id:
-            return "A transfer needs two different accounts."
-    already_used, categories_used = set(), set()
-    if existing is not None:
-        already_used.add(existing.account_id)
-        categories_used.add(existing.category_id)
-        if existing.transfer is not None:
-            already_used.add(existing.transfer.account_id)
-            categories_used.add(existing.transfer.category_id)
-    for each in (account, transfer):
-        if each is not None and each.closed and each.id not in already_used:
-            return f"{each.name} is closed. Reopen it on the Accounts page to add to it."
-    try:
-        when_date = date.fromisoformat(form.when)
-    except ValueError:
-        return "Enter a valid date."
-    if not 1990 <= when_date.year <= 2100:
-        return "The date must be between 1990 and 2100."
-
-    if bool(form.outflow.strip()) == bool(form.inflow.strip()):
-        return "Enter either an outflow or an inflow amount."
-    try:
-        amount = parse_money(form.inflow) if form.inflow.strip() else -parse_money(form.outflow)
-    except ValueError as exc:
-        return str(exc)
-    if amount == 0:
-        return "The amount cannot be zero."
-
-    category_id = None
-    if form.category_id.strip():
-        try:
-            category = owned_category(db, user, int(form.category_id))
-        except ValueError:
-            return "Choose a valid category."
-        # Only a card's starting debt sits in its payment category; pay a card by transfer.
-        if category.is_card_payment and category.id not in categories_used:
-            return "To pay a credit card, record a transfer to it."
-        category_id = category.id
-
-    # Only a budget-account leg can have a category; for a transfer, only when the money
-    # leaves or enters the budget, and then it must have one.
-    transfer_category_id = None
-    if transfer is None:
-        if not account.on_budget:  # tracking accounts never touch envelopes
-            category_id = None
-    elif account.on_budget == transfer.on_budget:
-        if category_id is not None:
-            return (
-                "Leave the category blank: a transfer between two budget accounts, or two "
-                "tracking accounts, doesn't touch the envelopes."
-            )
-    elif category_id is None:
-        return "Choose a category: this transfer moves money into or out of the budget."
-    elif not account.on_budget:
-        category_id, transfer_category_id = None, category_id
-
-    return ValidTransaction(
-        account_id=account.id,
-        category_id=category_id,
-        date=when_date,
-        payee=form.payee.strip()[:100],
-        memo=form.memo.strip()[:255],
-        amount=amount,
-        transfer_account_id=transfer.id if transfer else None,
-        transfer_category_id=transfer_category_id,
-    )
-
-
-def _save(db: Session, user: User, valid: ValidTransaction, transaction: Transaction) -> None:
-    """Apply checked fields to a new or existing transaction, keeping any other leg in step.
-
-    Adding a transfer account creates the other leg; removing it deletes that leg. The
-    caller commits, so both legs change together.
-    """
-    for field in ("account_id", "category_id", "date", "payee", "memo", "amount"):
-        setattr(transaction, field, getattr(valid, field))
-    other = db.get(Transaction, transaction.transfer_id) if transaction.transfer_id else None
-
-    if valid.transfer_account_id is None:
-        if other is not None:
-            transaction.transfer_id = None
-            db.delete(other)
-        return
-
-    if other is None:
-        other = Transaction(user_id=user.id)
-        db.add(other)
-    other.account_id = valid.transfer_account_id
-    other.category_id = valid.transfer_category_id
-    other.date, other.payee, other.memo = valid.date, valid.payee, valid.memo
-    other.amount = -valid.amount
-    db.flush()  # both legs need IDs before they can point at each other
-    transaction.transfer_id, other.transfer_id = other.id, transaction.id
-
-
 def _back_to(back: str) -> RedirectResponse:
     """Back to the list the form came from. Rebuilt from known filters: never a free URL."""
     return RedirectResponse(ListFilters.from_back(back).url(), status_code=303)
@@ -261,18 +100,18 @@ def _back_to(back: str) -> RedirectResponse:
 @router.post("/transactions")
 def add_transaction(
     request: Request,
-    form: TransactionForm = Depends(_form),
+    form: TransactionForm = Depends(transaction_form),
     back: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    valid = _validate(db, user, form)
+    valid = validate_transaction(db, user, form)
     if isinstance(valid, str):
         filters = ListFilters.from_back(back)
         return _page(request, db, user, filters, error=valid, status=400, values=form.values())
     transaction = Transaction(user_id=user.id)
     db.add(transaction)
-    _save(db, user, valid, transaction)
+    save_transaction(db, user.id, valid, transaction)
     db.commit()
     return _back_to(back)
 
@@ -348,7 +187,7 @@ LOCKED_ERROR = (
 def edit_transaction(
     request: Request,
     transaction_id: int,
-    form: TransactionForm = Depends(_form),
+    form: TransactionForm = Depends(transaction_form),
     back: str = Form(""),
     status: str = Form(""),
     confirm_reconciled: str = Form(""),
@@ -360,10 +199,10 @@ def edit_transaction(
     values = {**form.values(), "status": status}
     if _locked(transaction) and confirm_reconciled != "1":
         return _edit_page(request, db, user, transaction, values, back, LOCKED_ERROR, 400)
-    valid = _validate(db, user, form, existing=transaction)
+    valid = validate_transaction(db, user, form, existing=transaction)
     if isinstance(valid, str):
         return _edit_page(request, db, user, transaction, values, back, valid, 400)
-    _save(db, user, valid, transaction)
+    save_transaction(db, user.id, valid, transaction)
     transaction.status = status
     db.commit()
     return _back_to(back)

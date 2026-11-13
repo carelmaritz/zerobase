@@ -53,7 +53,7 @@
 
 {# The fields shared by the add and edit transaction forms. `v` holds the values to show.
    Closed accounts are left out unless already selected, as with hidden categories. #}
-{% macro transaction_fields(accounts, categories, inflow, v) -%}
+{% macro transaction_fields(accounts, categories, inflow, v, date_label="Date") -%}
 <label>Account
   <select name="account_id" required>
     {% for account in accounts if not account.closed or account.id == v.account_id %}
@@ -69,7 +69,7 @@
     {% endfor %}
   </select>
 </label>
-<label>Date <input type="date" name="when" value="{{ v.when }}" required></label>
+<label>{{ date_label }} <input type="date" name="when" value="{{ v.when }}" required></label>
 <label>Payee <input type="text" name="payee" maxlength="100" value="{{ v.payee or '' }}"></label>
 <label>Category <select name="category_id">{{ category_options(categories, inflow, v.category_id) }}</select></label>
 <label>Memo <input type="text" name="memo" maxlength="255" value="{{ v.memo or '' }}"></label>
@@ -110,7 +110,7 @@
   {%- if t.kind == "monthly" %}{% set have = line.assigned %}{% else %}{% set have = line.available %}{% endif %}
   <progress max="{{ t.amount }}" value="{{ [0, [have, t.amount]|min]|max }}" aria-hidden="true"></progress>
   {{ have|money }} of {{ t.amount|money }}
-  {%- if t.kind == "monthly" %} this month{% elif t.kind == "by_date" %} by {{ t.month.strftime("%b %Y") }}{% endif %}
+  {%- if t.kind == "monthly" %} this month{% elif t.kind == "by_date" %} by {{ line.target_due.strftime("%b %Y") }}{% if t.repeats %} (every year){% endif %}{% endif %}
   {%- if line.underfunded %} · needs {{ line.underfunded|money }}
   <form class="fund" method="post" action="/budget/fund" hx-post="/budget/fund" hx-swap="none">
     <input type="hidden" name="category_id" value="{{ line.category.id }}">

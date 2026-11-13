@@ -20,6 +20,7 @@ from .routers import (
     categories,
     imports,
     reconcile,
+    scheduled,
     targets,
     transactions,
 )
@@ -103,6 +104,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
-    for module in (auth, budget, categories, targets, accounts, imports, reconcile, transactions):
+    for module in (
+        auth,
+        budget,
+        categories,
+        targets,
+        accounts,
+        imports,
+        reconcile,
+        transactions,
+        scheduled,
+    ):
         app.include_router(module.router)
     return app

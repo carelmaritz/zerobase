@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_macros.html" import transaction_fields %}
+{% block title %}Scheduled{% endblock %}
+{% block content %}
+<h1>Scheduled transactions</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+{% if rows %}
+<table class="list">
+  <thead>
+    <tr><th scope="col">Next</th><th scope="col">Payee</th><th scope="col">Account</th><th scope="col">Category</th><th scope="col">Repeats</th><th scope="col" class="r">Amount</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}{% set s = row.s %}
+    <tr>
+      <td>{{ s.next_due.day }} {{ s.next_due.strftime("%b %Y") }}{% if row.paused %} <small class="muted">(paused: account closed)</small>{% endif %}</td>
+      <td>{{ s.payee }}</td>
+      <td>{{ s.account.name }}{% if s.transfer_account %} → {{ s.transfer_account.name }}{% endif %}</td>
+      <td>{{ (s.category or s.transfer_category).name if (s.category or s.transfer_category) else "" }}{% if s.save_up %} <small class="muted">(saving up)</small>{% endif %}</td>
+      <td>{{ row.every }}</td>
+      <td class="r">{{ s.amount|money }}</td>
+      <td class="row-actions">
+        <a href="/scheduled/{{ s.id }}/edit">Edit</a>
+        <form method="post" action="/scheduled/{{ s.id }}/enter"><button type="submit" class="link">Enter now</button></form>
+        <form method="post" action="/scheduled/{{ s.id }}/skip"><button type="submit" class="link">Skip next</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Nothing scheduled yet.</p>
+{% endif %}
+
+<section class="card">
+  <h2>Schedule a transaction</h2>
+  <form method="post" action="/scheduled" class="grid-form">
+    {{ transaction_fields(accounts, categories, inflow, values, date_label="First date") }}
+    {% include "_schedule_fields.html" %}
+    <button type="submit" class="primary">Schedule</button>
+  </form>
+  <p class="muted">Due transactions are entered when you next open ZeroBase, each on its own date, so nothing is missed.
+    "Enter now" enters the next one today; "Skip next" moves past it. A schedule on a closed account waits until it's reopened.</p>
+</section>
+{% endblock %}

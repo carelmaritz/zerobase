@@ -1,0 +1,9 @@
+{# Frequency fields shared by the add and edit schedule forms. `values` holds what to show. #}
+<label>Repeats
+  <select name="unit">
+    {% for key, label in units.items() %}<option value="{{ key }}"{% if key == values.unit %} selected{% endif %}>{{ "Once (no repeat)" if key == "once" else "Every … " ~ label|lower }}</option>{% endfor %}
+  </select>
+</label>
+<label>Every <input type="number" name="interval" min="1" max="99" value="{{ values.interval }}" inputmode="numeric"></label>
+<label class="check"><input type="checkbox" name="save_up" value="1"{% if values.save_up %} checked{% endif %}>
+  Save up for this in its category (yearly bills: sets a "by a month, every year" target, replacing any target the category has)</label>

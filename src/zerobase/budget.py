@@ -44,6 +44,7 @@ from .models import (
     Assignment,
     Category,
     CategoryGroup,
+    ScheduledTransaction,
     Target,
     Transaction,
 )
@@ -79,6 +80,7 @@ class CategoryLine:
     needed: int = 0
     target: Target | None = None
     underfunded: int = 0  # more to assign this month to meet the target
+    target_due: date | None = None  # a by-month target's due month, seen from this month
 
 
 @dataclass
@@ -244,22 +246,46 @@ def compute_budget(
     return figures, ready
 
 
+def target_due(by: date, month: date, repeats: bool) -> date:
+    """The month a by-month target is due, seen from ``month``.
+
+    A repeating (yearly) target is due in its month of the year: the first one on or after
+    ``month``, but never before ``by`` itself.
+    """
+    if not repeats or by >= month:
+        return by
+    due = date(month.year, by.month, 1)
+    return due if due >= month else date(month.year + 1, by.month, 1)
+
+
 def underfunded(
-    kind: str, amount: int, by: date | None, month: date, assigned: int, available: int
+    kind: str,
+    amount: int,
+    by: date | None,
+    month: date,
+    assigned: int,
+    available: int,
+    *,
+    repeats: bool = False,
+    activity: int = 0,
 ) -> int:
     """How much more to assign to a category in ``month`` to meet its target.
 
-    ``assigned`` is this month's assignment and ``available`` the Available at the end of
-    the month. Worked examples are in TASKS/TASK-M001.md.
+    ``assigned`` is this month's assignment, ``activity`` its activity and ``available``
+    the Available at the end of the month. Worked examples are in TASKS/TASK-M001.md and,
+    for repeating targets, TASKS/TASK-M002.md.
     """
     if kind == MONTHLY:  # set aside the amount every month
         return max(0, amount - assigned)
     if kind == BALANCE:
         return max(0, amount - available)
     # BY_DATE: what's left before this month's assigning, spread over the months to go.
+    # A repeating target counts from before this month's spending too, so paying the bill
+    # in its month doesn't make it look underfunded again.
     assert by is not None
-    start = available - assigned
-    months_left = max(1, (by.year - month.year) * 12 + by.month - month.month + 1)
+    due = target_due(by, month, repeats)
+    start = available - assigned - (activity if repeats else 0)
+    months_left = max(1, (due.year - month.year) * 12 + due.month - month.month + 1)
     share = -(-max(0, amount - start) // months_left)  # rounded up to the penny
     return max(0, share - assigned)
 
@@ -415,8 +441,17 @@ def build_budget(
         if target is not None and category.kind == "standard":
             line.target = target
             line.underfunded = underfunded(
-                target.kind, target.amount, target.month, month, f.assigned, f.available
+                target.kind,
+                target.amount,
+                target.month,
+                month,
+                f.assigned,
+                f.available,
+                repeats=target.repeats,
+                activity=f.activity,
             )
+            if target.month is not None:
+                line.target_due = target_due(target.month, month, target.repeats)
         (hidden if category.hidden else blocks[category.group_id].lines).append(line)
 
     return BudgetView(
@@ -493,15 +528,24 @@ def fund(db: Session, user_id: int, month: date, lines: list[CategoryLine]) -> l
 
 
 def category_in_use(db: Session, category: Category) -> bool:
-    """Whether any transaction or assignment refers to the category."""
-    return any(
-        db.scalar(select(model.id).where(model.category_id == category.id).limit(1)) is not None
-        for model in (Transaction, Assignment)
-    )
+    """Whether any transaction, assignment or schedule refers to the category."""
+    checks = [
+        select(Transaction.id).where(Transaction.category_id == category.id),
+        select(Assignment.id).where(Assignment.category_id == category.id),
+        select(ScheduledTransaction.id).where(
+            or_(
+                ScheduledTransaction.category_id == category.id,
+                ScheduledTransaction.transfer_category_id == category.id,
+            )
+        ),
+    ]
+    return any(db.scalar(check.limit(1)) is not None for check in checks)
 
 
 def merge_category(db: Session, source: Category, target: Category) -> None:
-    """Move the source's transactions, assignments and target to ``target``, then delete it.
+    """Move the source's transactions, assignments, schedules and target to ``target``.
+
+    Then delete the source.
 
     Assignments in the same month are summed (one assignment per category and month).
     Totals are unchanged, but past overspending can be: an overspent source merged into
@@ -509,12 +553,17 @@ def merge_category(db: Session, source: Category, target: Category) -> None:
     :func:`build_budget` with ``merge`` previews that. Flushes; the caller commits.
     """
     assert source.user_id == target.user_id and source.id != target.id
-    db.execute(
-        update(Transaction)
-        .where(Transaction.category_id == source.id)
-        .values(category_id=target.id)
-        .execution_options(synchronize_session="fetch")
-    )
+    for model, column in [
+        (Transaction, "category_id"),
+        (ScheduledTransaction, "category_id"),
+        (ScheduledTransaction, "transfer_category_id"),
+    ]:
+        db.execute(
+            update(model)
+            .where(getattr(model, column) == source.id)
+            .values({column: target.id})
+            .execution_options(synchronize_session="fetch")
+        )
     existing = {
         a.month: a
         for a in db.scalars(select(Assignment).where(Assignment.category_id == target.id))
