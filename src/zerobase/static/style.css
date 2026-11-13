@@ -155,12 +155,18 @@ tbody th[scope="row"] { font-weight: 400; }
 form.fund { display: inline; }
 .underfunded { margin: -.5rem 0 1rem; }
 .underfunded:empty { display: none; }
+.grid-form .crypto-fields { display: contents; }
+.grid-form .investment-note { grid-column: 1 / -1; margin: 0; }
 .grid-form fieldset { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: grid; gap: .25rem; }
 .grid-form .choice { display: flex; gap: .5rem; align-items: center; color: var(--text); }
 .by-month { display: flex; gap: .5rem; }
 /* Month and year only once "by a month" is chosen; browsers without :has() always show them. */
 @supports selector(:has(*)) {
   .grid-form:not(:has(input[name="kind"][value="by_date"]:checked)) .by-fields { display: none; }
+  /* Accounts: coin fields only for Crypto; the budget tick hidden for investment types. */
+  .grid-form:not(:has(option[value="crypto"]:checked)) .crypto-fields { display: none; }
+  .grid-form:has(:is(option[value="crypto"], option[value="pension"], option[value="isa_stocks"]):checked) .budget-tick { display: none; }
+  .grid-form:not(:has(:is(option[value="crypto"], option[value="pension"], option[value="isa_stocks"]):checked)) .investment-note { display: none; }
 }
 
 form.assign { margin: 0; }

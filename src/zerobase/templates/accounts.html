@@ -11,14 +11,15 @@
   <tbody>
     {% for account, balance in accounts %}
     <tr>
-      <th scope="row"><a href="/transactions?account_id={{ account.id }}">{{ account.name }}</a></th>
+      <th scope="row"><a href="/transactions?account_id={{ account.id }}">{{ account.name }}</a>{% if account.holding %} <small class="muted">· {{ account.holding }}</small>{% endif %}</th>
       <td>{{ kinds.get(account.kind, "Other") }}</td>
       <td>{{ "Budget" if account.on_budget else "Tracking only" }}</td>
       {% set done = cleared.get(account.id, 0) %}
       <td class="r">{{ done|money }}</td>
       <td class="r">{{ (balance - done)|money }}</td>
       <td class="r">{{ balance|money }}</td>
-      <td class="row-actions"><a href="/accounts/{{ account.id }}/reconcile" aria-label="Reconcile {{ account.name }}">Reconcile</a>
+      <td class="row-actions">{% if not account.on_budget %}<a href="/accounts/{{ account.id }}/value" aria-label="Update the value of {{ account.name }}">Update value</a>
+        {% endif %}<a href="/accounts/{{ account.id }}/reconcile" aria-label="Reconcile {{ account.name }}">Reconcile</a>
         <a href="/accounts/{{ account.id }}/import" aria-label="Import into {{ account.name }}">Import</a>
         <a href="/accounts/{{ account.id }}/edit" aria-label="Manage {{ account.name }}">Manage</a></td>
     </tr>
@@ -56,7 +57,13 @@
       </select>
     </label>
     <label>Opening balance <input type="text" inputmode="decimal" name="opening_balance" placeholder="0.00" autocomplete="off"></label>
-    <label class="check"><input type="checkbox" name="on_budget" value="1" checked> Budget account <small class="muted">(untick for balance-only tracking, e.g. a mortgage)</small></label>
+    <label class="check budget-tick"><input type="checkbox" name="on_budget" value="1" checked> Budget account <small class="muted">(untick for balance-only tracking, e.g. a mortgage)</small></label>
+    <p class="muted investment-note">Crypto, Pension and Stocks &amp; Shares ISA accounts are always tracking only:
+      their value changes with the markets, so they're kept out of the budget. Use "Update value" to record what they're worth.</p>
+    <div class="crypto-fields">
+      <label>Coin <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters"></label>
+      <label>Amount held <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25"></label>
+    </div>
     <p class="muted">For a credit card, enter what you owe as a negative opening balance (e.g. -500). A card is always a budget account,
       and gets its own payment category in the budget.</p>
     <button type="submit" class="primary">Add account</button>

@@ -6,6 +6,7 @@ Every row belongs to a user, and every query filters on ``user_id``.
 
 import datetime as dt
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    TypeDecorator,
     UniqueConstraint,
     false,
 )
@@ -38,6 +40,24 @@ class User(Base):
 
 
 CREDIT_CARD = "credit_card"  # Account.kind of a credit card: always a budget account
+# Investment kinds are always tracking accounts, valued with "Update value" (TASK-M007).
+CRYPTO, PENSION, ISA_STOCKS = "crypto", "pension", "isa_stocks"
+INVESTMENT_KINDS = (CRYPTO, PENSION, ISA_STOCKS)
+
+
+class ExactDecimal(TypeDecorator):
+    """A Decimal stored as text, so it is exact on every database (SQLite has no decimal
+    type, and SQLAlchemy would pass it through a float there)."""
+
+    impl = String(48)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return None if value is None else format(Decimal(value), "f")
+
+    def process_result_value(self, value, dialect):
+        return None if value is None else Decimal(value)
+
 
 # Transaction.status: seen on a bank statement (cleared), and then confirmed against the
 # bank's balance and locked (reconciled). See TASK-M006.
@@ -59,10 +79,23 @@ class Account(Base):
     closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # When the cleared balance was last confirmed against the bank's. NULL: never.
     reconciled_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Crypto accounts only: the coin's trading symbol (e.g. BTC) and the amount held.
+    symbol: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(ExactDecimal, nullable=True)
 
     @property
     def is_credit_card(self) -> bool:
         return self.kind == CREDIT_CARD
+
+    @property
+    def quantity_text(self) -> str:
+        """The amount held as plain digits (never "1E-8"); empty when not recorded."""
+        return "" if self.quantity is None else format(self.quantity, "f")
+
+    @property
+    def holding(self) -> str:
+        """What a crypto account holds, e.g. "0.25 BTC"; empty when nothing is recorded."""
+        return " ".join(part for part in (self.quantity_text, self.symbol or "") if part)
 
 
 class CategoryGroup(Base):

@@ -389,3 +389,30 @@ def test_0010_schedule_occurrences_are_unique_and_downgrade_keeps_transactions(e
     assert "scheduled_transactions" not in app_tables(engine)
     assert "schedule_id" not in {c["name"] for c in inspect(engine).get_columns("transactions")}
     assert "repeats" not in {c["name"] for c in inspect(engine).get_columns("targets")}
+
+
+def test_0011_coin_and_amount_held_are_exact_and_downgrade_keeps_accounts(engine):
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, created_at) "
+                "VALUES ('a@b.c', 'x', '2026-01-01')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO accounts (user_id, name, kind, on_budget, closed, symbol, quantity) "
+                "SELECT id, 'Coinbase', 'crypto', :f, :f, 'ETH', '1.000000000000000001' FROM users"
+            ),
+            {"f": False},
+        )
+        assert (
+            connection.execute(text("SELECT quantity FROM accounts")).scalar()
+            == "1.000000000000000001"
+        )
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0010")
+        assert connection.execute(text("SELECT count(*) FROM accounts")).scalar() == 1
+    columns = {c["name"] for c in inspect(engine).get_columns("accounts")}
+    assert not {"symbol", "quantity"} & columns
