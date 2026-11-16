@@ -13,9 +13,14 @@ from ..budget import (
     inflow_category,
 )
 from ..deps import current_user, get_db, owned_account
+from ..investments import parse_quantity, parse_symbol
 from ..models import (
     CLEARED,
     CREDIT_CARD,
+    CRYPTO,
+    INVESTMENT_KINDS,
+    ISA_STOCKS,
+    PENSION,
     Account,
     Category,
     ImportMapping,
@@ -33,10 +38,23 @@ ACCOUNT_KINDS = {
     "checking": "Current account",  # the stored key stays "checking"; UK name shown
     "savings": "Savings",
     "cash": "Cash",
+    CRYPTO: "Crypto",
+    PENSION: "Pension",
+    ISA_STOCKS: "Stocks & Shares ISA",
     "other": "Other",
     CREDIT_CARD: "Credit card",
 }
 NAME_ERROR = "Give the account a name (up to 80 characters)."
+
+
+def _holding(kind: str, symbol: str, quantity: str):
+    """A crypto account's coin and amount held, parsed; (None, None) for any other kind.
+
+    Raises ValueError with a user-presentable message on bad input.
+    """
+    if kind != CRYPTO:
+        return None, None
+    return parse_symbol(symbol), parse_quantity(quantity)
 
 
 def _clean_name(name: str) -> str | None:
@@ -72,6 +90,8 @@ def add_account(
     kind: str = Form("checking"),
     on_budget: str | None = Form(None),
     opening_balance: str = Form(""),
+    symbol: str = Form(""),
+    quantity: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -84,10 +104,16 @@ def add_account(
         balance = parse_money(opening_balance) if opening_balance.strip() else 0
     except ValueError as exc:
         return _page(request, db, user, f"Opening balance: {exc}", 400)
+    try:
+        coin, held = _holding(kind, symbol, quantity)
+    except ValueError as exc:
+        return _page(request, db, user, str(exc), 400)
 
     card = kind == CREDIT_CARD
+    # Investments are always tracking accounts: a market move must never reach the budget.
+    budget = card or (on_budget is not None and kind not in INVESTMENT_KINDS)
     account = Account(
-        user_id=user.id, name=name, kind=kind, on_budget=card or on_budget is not None
+        user_id=user.id, name=name, kind=kind, on_budget=budget, symbol=coin, quantity=held
     )
     db.add(account)
     db.flush()
@@ -147,6 +173,7 @@ def _edit_page(
         "balance": _balance(db, account),
         "has_transactions": _has_transactions(db, account),
         "kinds": ACCOUNT_KINDS,
+        "investment_kinds": INVESTMENT_KINDS,
         "error": error,
         "close_refused": close_refused,
     }
@@ -177,6 +204,8 @@ def edit_account(
     account_id: int,
     name: str = Form(...),
     kind: str = Form(...),
+    symbol: str = Form(""),
+    quantity: str = Form(""),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -189,7 +218,18 @@ def edit_account(
     if kind not in ACCOUNT_KINDS or (kind == CREDIT_CARD) != account.is_credit_card:
         error = "Choose a valid account type."
         return _edit_page(request, db, user, account, error, 400, name=name)
+    if account.on_budget and kind in INVESTMENT_KINDS:
+        error = (
+            f"{ACCOUNT_KINDS[kind]} accounts are always tracking only, and a budget account "
+            f"can't leave the budget. Add a new {ACCOUNT_KINDS[kind]} account instead."
+        )
+        return _edit_page(request, db, user, account, error, 400, name=name)
+    try:
+        coin, held = _holding(kind, symbol, quantity)  # cleared when it's no longer Crypto
+    except ValueError as exc:
+        return _edit_page(request, db, user, account, str(exc), 400, name=name)
     account.name, account.kind = cleaned, kind
+    account.symbol, account.quantity = coin, held
     payment = _payment_category(db, account)
     if payment is not None:  # a card's payment category is named after it
         payment.name = cleaned[:60]

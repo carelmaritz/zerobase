@@ -10,6 +10,7 @@
 
 <p>Balance: <strong>{{ balance|money }}</strong> ·
   <a href="/transactions?account_id={{ account.id }}">View transactions</a> ·
+  {% if not account.on_budget and not account.closed %}<a href="/accounts/{{ account.id }}/value">Update value</a> ·{% endif %}
   <a href="/accounts/{{ account.id }}/reconcile">Reconcile</a> ·
   {% if not account.closed %}<a href="/accounts/{{ account.id }}/import">Import a statement</a> ·{% endif %}
   <a href="/accounts">Back to accounts</a></p>
@@ -20,9 +21,15 @@
     <label>Name <input type="text" name="name" maxlength="80" required value="{{ name }}"></label>
     <label>Type
       <select name="kind">
-        {% for key, label in kinds.items() if (key == "credit_card") == account.is_credit_card %}<option value="{{ key }}"{% if key == account.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        {% for key, label in kinds.items() if (key == "credit_card") == account.is_credit_card and not (account.on_budget and key in investment_kinds) %}<option value="{{ key }}"{% if key == account.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </label>
+    {% if not account.on_budget %}
+    <div class="crypto-fields">
+      <label>Coin <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters" value="{{ account.symbol or "" }}"></label>
+      <label>Amount held <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25" value="{{ account.quantity_text }}"></label>
+    </div>
+    {% endif %}
     <p class="muted">Counts toward: {{ "Budget" if account.on_budget else "Tracking only" }}.
       This{% if account.is_credit_card %}, and being a credit card,{% endif %} can't be changed after the account is created, because it would change which past transactions count in the budget.</p>
     <button type="submit" class="primary">Save</button>

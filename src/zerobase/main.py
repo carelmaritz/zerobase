@@ -23,6 +23,7 @@ from .routers import (
     scheduled,
     targets,
     transactions,
+    valuation,
 )
 from .security import LoginThrottle
 from .templating import PACKAGE_DIR, make_templates
@@ -114,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         reconcile,
         transactions,
         scheduled,
+        valuation,
     ):
         app.include_router(module.router)
     return app

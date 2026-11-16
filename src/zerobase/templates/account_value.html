@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Update value: {{ account.name }}{% endblock %}
+{% block content %}
+<h1>Update value: {{ account.name }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+<p>Balance today: <strong>{{ balance|money }}</strong>{% if account.holding %} · Holding: <strong>{{ account.holding }}</strong>{% endif %} ·
+  <a href="/transactions?account_id={{ account.id }}">View transactions</a> ·
+  <a href="/accounts">Back to accounts</a></p>
+
+<section class="card">
+  <h2>What is it worth?</h2>
+  <form method="post" action="/accounts/{{ account.id }}/value" class="grid-form">
+    <label>Value <input type="text" inputmode="decimal" name="value" required autocomplete="off"
+      value="{{ values.value }}" placeholder="{{ balance|plain }}"></label>
+    <label>On <input type="date" name="when" required value="{{ values.when }}"></label>
+    {% if crypto %}
+    <label>Amount held{% if account.symbol %} ({{ account.symbol }}){% endif %}
+      <input type="text" inputmode="decimal" name="quantity" autocomplete="off" value="{{ values.quantity }}" placeholder="0.25"></label>
+    {% endif %}
+    <p class="muted">The difference from the balance on that date is added as a cleared "Market value change"
+      transaction. This is a tracking account, so the budget doesn't change.</p>
+    <button type="submit" class="primary">Save</button>
+  </form>
+</section>
+{% endblock %}
