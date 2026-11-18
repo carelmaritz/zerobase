@@ -105,6 +105,17 @@ def test_crypto_keeps_its_coin_and_amount(client, db, me):
     assert 'Coinbase BTC</a> <small class="muted">· 0.25 BTC</small>' in page
 
 
+def test_coin_fields_are_always_on_the_add_form(client, db, me):
+    # Hiding them by the chosen Type (CSS :has) lost the values on Carel's iPad, so they're
+    # always shown, labelled, and ignored for other types.
+    page = client.get("/accounts").text
+    coin = 'Coin <small class="muted">(Crypto only)</small> <input type="text" name="symbol"'
+    assert coin in page
+    assert 'Amount held <small class="muted">(Crypto only)</small>' in page
+    css = client.get("/static/style.css").text
+    assert "option[value=" not in css
+
+
 def test_other_kinds_ignore_coin_fields(client, db, me):
     _, account = add(client, db, "Vanguard", "pension", symbol="BTC", quantity="1")
     assert account.symbol is None and account.quantity is None
