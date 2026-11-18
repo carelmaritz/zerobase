@@ -1,18 +1,18 @@
-# Session Handover — 2026-11-13 — M002 (scheduled transactions, yearly targets) done and merged; CT 161 on main; next: M003 or Carel's pick
+# Session Handover — 2026-11-18 — M007 (investment accounts) done, merged and deployed; CT 161 on main; next: Carel's pick
 
 ## Current state
 
-All verified on 2026-11-13.
+All verified on 2026-11-18.
 
-- **`main` at `2039cd2`** ("Merge TASK-M002"), plus the commit that updated this handover. Pushed. At `03a1745` (the M002 code; later commits are docs only): 312 tests pass on SQLite (1 PostgreSQL-only test skipped), 313 on PostgreSQL 16. Ruff is clean.
-- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006`, `TASK-M001` and `TASK-M002` are all fully merged and pushed. Delete them only if Carel asks.
+- **`main` at `beec77d`** ("Merge TASK-M007"), plus the commit that updated this handover. Pushed. Carel had already merged `0b9a431` on GitHub as PR #4 (`adfcac7`); `beec77d` adds the iPad fix on top. At `beec77d`: 354 tests pass on SQLite (1 PostgreSQL-only test skipped), 355 on PostgreSQL 16. Ruff is clean.
+- **Branches:** `TASK-H003` to `TASK-H006`, `TASK-M005`, `TASK-M006`, `TASK-M001`, `TASK-M002` and `TASK-M007` are all fully merged and pushed. Delete them only if Carel asks.
 - **Task status:**
-  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, M006, M001, **M002**.
+  - Done: H000, C001, H007, H001, H002, H003, H004, H005, H006, M005, M006, M001, M002, **M007**.
   - **Next:** not chosen. TODO: M003 (reports), M004 (trusted proxy), L001 (form validation), L002 (export). Carel has liked discussing a task before code. HTTPS is on hold, at Carel's request.
-- **Database schema head: revision `0010`** (`0010_scheduled_transactions.py`).
+- **Database schema head: revision `0011`** (investment account columns `accounts.symbol`, `accounts.quantity`).
 - **GitHub CI:** status never checked (**unverified**).
 - **Test deployment, CT 161** (details in `deploy/lxc/README.md` and memory `test-deployment.md`):
-  - Runs **`main` (`2039cd2`)**. App and database are healthy, and the database is at `0010`.
+  - Runs **`main` (`beec77d`)**. App and database are healthy, and the database is at `0011`.
   - **Login:** `demo@zerobase.local` (the password was given to Carel in chat; it isn't stored anywhere).
   - **Data after Carel's testing** (all deliberate):
     - Categories: Rent / Mortgage was merged into Holidays, Insurance renamed "Rainy Day", and the Needs group deleted (its categories moved to Bills). Groceries is visible again (Carel unhid it before M001 testing). **Dining out (category 9) was merged into Groceries** in M001 testing: its assignments were added into Groceries' (September is now £540, October £520) and its transactions moved there.
@@ -24,16 +24,19 @@ All verified on 2026-11-13.
     - **M001 testing:**
       - Targets: Groceries is monthly £400 (category 6), Emergency fund a £4,500 balance (12), and Holidays £1,200 by July 2027 (13). Transport's target was removed.
       - New November assignments: Groceries £400 (row 27), Holidays £133.34 (28), Transport £180.90 (29), Emergency fund £54.06 (30).
-    - **Ready to Assign after M001:** October £1,268.30, November and December £0.00. **Not rechecked after M002 testing** (the new spending below is all categorised, so it shouldn't move it). The −£46.70 since H006 is row 151 overspending Utilities in September, the overspending rule, not a bug.
+    - **Ready to Assign (checked 2026-11-18):** October £1,293.30, November £5.00, **December −£15.00**. The figures this file used to give (£1,268.30 / £0 / £0) were wrong. The pre-M002 backup gives £1,313.30 / £45 / £45; the change since is the three M002 Phone Bill rows (218–220, −£20 each in Phone & Internet, which has nothing assigned) overspending that category each month. That's the overspending rule, not a bug. M007 changed nothing (the pre-M007 backup gives the same figures).
     - **M002 testing (2026-11-13):**
       - Schedules: **Coffee** (id 2, weekly, Entertainment cat 10, −£3, next 4 Dec 2026) and **Dropbox** (id 3, yearly, new category **Dropbox** id 16 in Bills, −£119.88, next 3 Mar 2027, save up on). Phone Bill (id 1) was deleted.
       - Target 6: Dropbox, `by_date` £119.88, Mar 2027, `repeats`.
       - Rows: Phone Bill 218–220 (1 Sep/Oct/Nov, −£20, Phone & Internet cat 3, now unlinked), Coffee 221–223 (all dated 13 Nov, `scheduled_for` 13/20/27 Nov). A stray Dropbox row (224) was deleted by Carel. 216 transactions in total.
       - Carel briefly added and deleted an empty group (6) while adding Dropbox.
+    - **M007 testing (2026-11-17/18):** Coinbase BTC (account 7, Crypto, BTC, 0.3; starting balance 225 £15,000, value change 226 +£1,000), Solana (8, Crypto, SOL, 100, no starting balance row), HL (9, Pension; starting balance 227 £50,000, value change 228 −£1,000). All tracking only. 220 transactions in total.
     - Don't wipe, reseed or restore without asking.
   - **Firewall:** the app can be reached from 192.168.1.0/24 and 192.168.2.0/24 (the WiFiman VPN). SSH is 192.168.1.0/24 only.
   - **Backups** in `/opt/zerobase/backups/`:
-    - The latest is `zerobase-20261113-084038.sql.gz`, after M002 testing, before deploying main.
+    - The latest is `zerobase-20261118-223117.sql.gz`, after M007 testing, before deploying main at `beec77d`.
+    - `zerobase-20261113-152945.sql.gz` is from before M007 was deployed (schema `0010`).
+    - `zerobase-20261113-084038.sql.gz` is from after M002 testing.
     - `zerobase-20261111-185029.sql.gz` is from before M002 was deployed (schema `0009`).
     - `zerobase-20261109-192409.sql.gz` is from just before M001 was deployed (schema `0008`, before any targets).
     - `zerobase-20261109-155529.sql.gz` is from after M006 testing.
@@ -42,18 +45,18 @@ All verified on 2026-11-13.
 
 ## Completed this session
 
-1. **TASK-M001 (targets and goals), DONE**, merged as `c2f7af7` on 2026-11-11. Details in `TASKS/TASK-M001.md`.
-2. **TASK-M002 (scheduled transactions), DONE**, merged as `2039cd2`. Agreed plan, annual-bill maths and work in `TASKS/TASK-M002.md`.
-   - **Migration `0010`:** `scheduled_transactions`; `transactions.schedule_id` + `scheduled_for` (unique together); `targets.repeats`.
-   - **Code:** `schedules.py` (dates, entering, upcoming, save-up), `entry.py` (transaction validation and save, shared with schedules), `routers/scheduled.py`, the Upcoming section on Transactions.
-   - **Carel's decisions:** entered when the app is opened (no job); editing changes all future occurrences; missed dates all entered with a notice; entered rows start uncleared; annual bills use a yearly repeating target, with a "Save up for this" tick on yearly schedules; one category per annual bill.
-   - **Claude's calls, kept by Carel:** unique key against double entry; the 31st falls back to the month's last day and returns; 100 catch-up occurrences per schedule per request; "Once" schedules are deleted after entering; closed accounts pause schedules; a Scheduled page plus 30-day Upcoming.
-   - Carel tested all five steps on CT 161 (iPad), database checked after each.
+1. **TASK-M007 (investment accounts), DONE**, merged as `beec77d` on 2026-11-18 and deployed to CT 161. Plan, Carel's decisions, test results: `TASKS/TASK-M007.md`.
+   - Types Crypto, Pension, Stocks & Shares ISA (`crypto`, `pension`, `isa_stocks`), always tracking only. Crypto has a coin symbol and an exact amount held.
+   - "Update value" on every open tracking account adds one cleared, uncategorised "Market value change" row for the difference.
+   - Carel tested all five steps on CT 161 (laptop for step 1 onwards), database checked after each.
+   - **iPad fix (Carel's choice):** the iPad saved a Crypto account with no coin or amount while those boxes were shown or hidden by `:has(option:checked)`. They're now always shown, labelled "(Crypto only)". **Not yet seen by Carel on the iPad.**
+2. Found that Ready to Assign figures in this file were stale; corrected above, with the cause.
 
 ## Next steps
 
-1. **Ask Carel which task is next** (M003, M004, L001, L002, or the follow-up below). Discuss before code; agree a plan (`task-planning` skill), then branch `TASK-XNNN`.
-2. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
+1. **Ask Carel which task is next** (M003 reports, which could now include net worth across investment accounts; M004 trusted proxy; L001 form validation; L002 export; or a follow-up below). Discuss before code; agree a plan (`task-planning` skill), then branch `TASK-XNNN`.
+2. Optional: Carel opens the Accounts page on the iPad to see the always-shown coin boxes and adds nothing (or a test Crypto account) to confirm the coin and amount now save there.
+3. **When Carel imports a real bank download:** if it doesn't parse or the guessed mapping is off, add an anonymised copy as a fixture in `tests/test_importer.py`, then fix `importer.py`. The real file also decides whether QIF is needed (H006 decision 7).
 
 ## Open decisions
 
@@ -63,14 +66,15 @@ All verified on 2026-11-13.
 - **HTTPS is on hold** at Carel's request (2026-11-09).
 - **Targets on hidden categories:** they're kept, but the budget's hidden table shows no target or button. Unhide the category to fund it. Change this only if Carel asks.
 - **New-schedule date defaults to today:** today counts as due, so saving enters the first row at once (Carel hit this with Dropbox). Works as agreed; a possible small follow-up (e.g. default to tomorrow, or warn). Only if Carel wants it.
-- **Coffee and Phone Bill test rows on CT 161:** Carel may want them removed; ask, don't delete.
+- **Coffee and Phone Bill test rows on CT 161:** Carel may want them removed; ask, don't delete. The Phone Bill rows are why December's Ready to Assign is −£15.00; deleting them, or assigning £20 a month to Phone & Internet, clears it. Offered to Carel on 2026-11-17, no answer yet.
 - **UI polish is deferred.** Carel wants the back end first (memory `backend-first-priority.md`).
 
 ## Failed approaches
 
 - **Claude changing CT 161's firewall:** blocked by the auto-mode classifier ("Security Weaken"), even with Carel's OK in chat. Give Carel the command to run instead. Pasted one-liners can lose characters (the space in `ip saddr` vanished once), so keep `sed` patterns short.
 - **Claude deleting merged branches:** blocked by the classifier ("Git Destructive") when bundled into a wrap-up. It worked when Carel asked for it directly and the merge was checked first.
-- **Creating PRs from here:** `gh` isn't installed and there's no token. Merge locally with `git merge --no-ff` and push after asking, or Carel merges on GitHub.
+- **Creating PRs from here:** `gh` isn't installed and there's no token. Merge locally with `git merge --no-ff` and push after asking, or Carel merges on GitHub (they did for M007 as PR #4, without saying so; `git pull --ff-only` first shows it).
+- **Showing or hiding form parts by a `<select>`'s option (`:has(option:checked)`):** broke saving on Carel's iPad (M007). Radio-driven `:has()` works there (target form). Prefer always-visible fields or radios.
 - **Migration tests with explicit primary keys on PostgreSQL:** fixed IDs don't advance the sequence, so a later insert collides. Let the database assign IDs when anything inserts afterwards.
 - **Worry that RESTRICT breaks deleting a user (checked 2026-11-02, it doesn't):** on PostgreSQL 16, deleting a user still cascades through categories, accounts and transactions with RESTRICT foreign keys between them, and RESTRICT still blocks deleting a category directly. No need for NO ACTION instead, and no route deletes users anyway.
 - **`<input type="month">`:** Carel's browser couldn't type into it or open a picker. Use month and year `<select>`s (see `templates/target.html`).
@@ -91,6 +95,11 @@ All verified on 2026-11-13.
   - The assigned inputs are swapped by htmx only after a quick-assign (`inputs=True`), never after typing, so focus isn't lost.
   - A new path that deletes categories must delete its `Target`, because SQLite doesn't enforce the CASCADE.
   - The target form's month and year fields are shown or hidden with CSS `:has()`.
+- **Investment accounts (M007):**
+  - `INVESTMENT_KINDS` are forced off budget on add, whatever the form sends; a budget account can't be switched to one (refused, and not offered).
+  - `accounts.quantity` is `ExactDecimal` (decimal text, `String(48)`), not `NUMERIC`, so SQLite never rounds it through a float.
+  - The coin fields are saved only for Crypto and cleared when the type changes away from it; other types ignore what's sent.
+  - Update value works from the balance **on the chosen date**, locks the account row, and is 404 on budget and closed accounts. Posting the same value twice adds one row.
 - **Schedules (M002):**
   - `enter_due()` runs inside `deps.current_user`, so **any authenticated request can enter rows**, including the POST under test. In tests, set up state (e.g. close the account) before creating the schedule.
   - `deps.py` imports `schedules` inside the function: `schedules → entry → deps` would be circular.
