@@ -26,8 +26,8 @@
     </label>
     {% if not account.on_budget %}
     <div class="crypto-fields">
-      <label>Coin <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters" value="{{ account.symbol or "" }}"></label>
-      <label>Amount held <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25" value="{{ account.quantity_text }}"></label>
+      <label>Coin <small class="muted">(Crypto only)</small> <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters" value="{{ account.symbol or "" }}"></label>
+      <label>Amount held <small class="muted">(Crypto only)</small> <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25" value="{{ account.quantity_text }}"></label>
     </div>
     {% endif %}
     <p class="muted">Counts toward: {{ "Budget" if account.on_budget else "Tracking only" }}.

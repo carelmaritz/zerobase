@@ -58,11 +58,11 @@
     </label>
     <label>Opening balance <input type="text" inputmode="decimal" name="opening_balance" placeholder="0.00" autocomplete="off"></label>
     <label class="check budget-tick"><input type="checkbox" name="on_budget" value="1" checked> Budget account <small class="muted">(untick for balance-only tracking, e.g. a mortgage)</small></label>
-    <p class="muted investment-note">Crypto, Pension and Stocks &amp; Shares ISA accounts are always tracking only:
+    <p class="muted investment-note">Crypto, Pension and Stocks &amp; Shares ISA accounts are always tracking only, whatever the tick says:
       their value changes with the markets, so they're kept out of the budget. Use "Update value" to record what they're worth.</p>
     <div class="crypto-fields">
-      <label>Coin <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters"></label>
-      <label>Amount held <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25"></label>
+      <label>Coin <small class="muted">(Crypto only)</small> <input type="text" name="symbol" maxlength="10" autocomplete="off" placeholder="BTC" autocapitalize="characters"></label>
+      <label>Amount held <small class="muted">(Crypto only)</small> <input type="text" inputmode="decimal" name="quantity" autocomplete="off" placeholder="0.25"></label>
     </div>
     <p class="muted">For a credit card, enter what you owe as a negative opening balance (e.g. -500). A card is always a budget account,
       and gets its own payment category in the budget.</p>

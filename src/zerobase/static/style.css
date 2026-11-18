@@ -163,10 +163,6 @@ form.fund { display: inline; }
 /* Month and year only once "by a month" is chosen; browsers without :has() always show them. */
 @supports selector(:has(*)) {
   .grid-form:not(:has(input[name="kind"][value="by_date"]:checked)) .by-fields { display: none; }
-  /* Accounts: coin fields only for Crypto; the budget tick hidden for investment types. */
-  .grid-form:not(:has(option[value="crypto"]:checked)) .crypto-fields { display: none; }
-  .grid-form:has(:is(option[value="crypto"], option[value="pension"], option[value="isa_stocks"]):checked) .budget-tick { display: none; }
-  .grid-form:not(:has(:is(option[value="crypto"], option[value="pension"], option[value="isa_stocks"]):checked)) .investment-note { display: none; }
 }
 
 form.assign { margin: 0; }

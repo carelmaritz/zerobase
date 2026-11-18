@@ -1,12 +1,12 @@
 # TASK-M007: Investment accounts (crypto, pension, Stocks & Shares ISA)
 
-**Status**: IN_PROGRESS
+**Status**: DONE
 **Priority**: M - Medium
 **Effort**: M - 3-5 days
 **Assigned**: Claude
 **Created**: 2026-11-13
 **Started**: 2026-11-13
-**Completed**:
+**Completed**: 2026-11-18
 **Branch**: TASK-M007
 **Dependencies**: TASK-H004 (manage accounts)
 
@@ -44,20 +44,20 @@ The account types today are Current account, Savings, Cash, Other and Credit car
   - A budget account can't become an investment type (it would have to leave the budget, which would rewrite history). Refused with a message.
   - A tracking account can switch freely among the non-card types.
   - Moving away from Crypto clears the symbol and amount.
-- **Accounts page:** Crypto shows as "Coinbase · 0.25 BTC". The add form hides the "Budget account" tick for the investment types, and shows Coin and Amount only for Crypto (CSS `:has()`, as the target form does).
+- **Accounts page:** Crypto shows as "Coinbase · 0.25 BTC". The Coin and Amount held boxes are always on the add and edit forms, labelled "(Crypto only)" and ignored for other types (changed after iPad testing; see Failed Approaches).
 
 ---
 
 ## Technical Requirements
 
 ### Success Criteria
-- [ ] The three types can be added; they are always tracking accounts, whatever the form sends.
-- [ ] A Crypto account stores its symbol (capitals) and exact amount held; bad symbols or amounts are refused with a message.
-- [ ] "Update value" on a tracking account adds one "Market value change" row for the difference; none when unchanged; never on a budget account.
-- [ ] A budget account can't be switched to an investment type.
-- [ ] Ready to Assign and every category are unchanged by value updates (test).
-- [ ] Migration `0011` adds `accounts.symbol` and `accounts.quantity`; the migration test covers it.
-- [ ] Tested on SQLite and PostgreSQL; ruff clean.
+- [x] The three types can be added; they are always tracking accounts, whatever the form sends.
+- [x] A Crypto account stores its symbol (capitals) and exact amount held; bad symbols or amounts are refused with a message.
+- [x] "Update value" on a tracking account adds one "Market value change" row for the difference; none when unchanged; never on a budget account.
+- [x] A budget account can't be switched to an investment type.
+- [x] Ready to Assign and every category are unchanged by value updates (test).
+- [x] Migration `0011` adds `accounts.symbol` and `accounts.quantity`; the migration test covers it.
+- [x] Tested on SQLite and PostgreSQL; ruff clean.
 
 ### Out of Scope
 - Holdings (several funds or coins in one account), unit prices, automatic price lookups.
@@ -77,14 +77,14 @@ The account types today are Current account, Savings, Cash, Other and Credit car
 ## Implementation Plan
 
 ### Phase 1: data
-- [ ] Constants for the new kinds in `models.py`; `Account.symbol`, `Account.quantity`; migration `0011`.
-- [ ] Parsing and checks for symbol and amount, with unit tests.
+- [x] Constants for the new kinds in `models.py`; `Account.symbol`, `Account.quantity`; migration `0011`.
+- [x] Parsing and checks for symbol and amount, with unit tests.
 
 ### Phase 2: routes and pages
-- [ ] Add and edit forms: forced off-budget, refusals, symbol and amount for Crypto.
-- [ ] `GET`/`POST /accounts/{id}/value` and its page; the link on tracking accounts.
-- [ ] Accounts page shows the coin and amount.
-- [ ] Tests, both databases; deploy to CT 161 for Carel to test.
+- [x] Add and edit forms: forced off-budget, refusals, symbol and amount for Crypto.
+- [x] `GET`/`POST /accounts/{id}/value` and its page; the link on tracking accounts.
+- [x] Accounts page shows the coin and amount.
+- [x] Tests, both databases; deploy to CT 161 for Carel to test.
 
 ---
 
@@ -98,11 +98,21 @@ The account types today are Current account, Savings, Cash, Other and Credit car
 - **Pages:** the Accounts list shows "· 0.25 BTC" and an "Update value" link on tracking accounts; the add and edit forms show the coin fields only for Crypto, and the add form hides the budget tick for investments (CSS `:has()`).
 - **Tests:** `tests/test_investments.py` (parsing, forced tracking, refusals, value updates, Ready to Assign unchanged, another user gets 404, contributions as transfers), and the `0011` migration test. 353 pass on SQLite (1 skipped), 354 on PostgreSQL.
 
+2026-11-17/18: Carel tested on CT 161; every step was checked in the database.
+1. Crypto add: from the iPad, Coinbase BTC (account 7) saved with no coin or amount; from the laptop, Solana (8) saved `SOL` / `100`. Coinbase BTC's coin was then set via Manage.
+2. Update value on Coinbase BTC to £16,000: one cleared +£1,000 "Market value change" row (226), no category; the same value again added no row but saved the amount held (0.3).
+3. Pension HL (9): £50,000 opening (227), Update value to £49,000 gave −£1,000 (228); no amount field.
+4. Current account's Type list offers no investment types.
+5. No "Update value" on budget accounts.
+Ready to Assign was unchanged by M007 (same figures from the pre-M007 backup: Oct £1,293.30, Nov £5.00, Dec −£15.00; the drift since M001 is the M002 Phone Bill test rows overspending Phone & Internet).
+
+After testing: the coin boxes are always shown, labelled "(Crypto only)", and the option-driven `:has()` rules were removed (Carel's choice), with a test. 354 pass on SQLite (1 skipped), 355 on PostgreSQL.
+
 ---
 
 ## Failed Approaches
 
-None yet.
+- **Showing or hiding form parts by the `<select>`'s chosen option (CSS `:has(option:checked)`):** on Carel's iPad (Safari, then Firefox) the add form saved Coinbase BTC with an empty coin and amount, while the laptop saved them fine. The exact cause wasn't found. Carel chose to always show the boxes, labelled "(Crypto only)", and the budget tick and investment note are no longer hidden either (the server forces investment types off budget anyway). Radio-driven `:has()`, as on the target form, does work on the iPad.
 
 ---
 
@@ -113,4 +123,4 @@ None yet.
 
 ---
 
-*Last Updated: 2026-11-13 by Claude*
+*Last Updated: 2026-11-18 by Claude*
