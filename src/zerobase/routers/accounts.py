@@ -137,6 +137,7 @@ def add_account(
                 category_id=category_id,
                 date=date.today(),
                 payee="Starting balance",
+                is_starting=True,
                 amount=balance,
                 status=CLEARED,  # what the bank showed when the account was added
             )

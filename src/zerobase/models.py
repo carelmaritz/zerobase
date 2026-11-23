@@ -192,6 +192,9 @@ class Transaction(Base):
     # dt.date: inside this class, "date" is the column above.
     scheduled_for: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
 
+    # An account's starting balance: never income in reports (TASK-M003).
+    is_starting: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
     account: Mapped[Account] = relationship()
     category: Mapped[Category | None] = relationship()
     # Read-only: routers set transfer_id directly, since the two legs refer to each other.

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+
+{% macro amount(value) %}<td class="r num{{ " neg" if value < 0 }}">{{ value|money }}</td>{% endmacro %}
+
+{% macro axis(value) %}{% set pounds = value // 100 %}{{ "-" if value < 0 }}{{ currency }}{% if pounds|abs >= 1000000 %}{{ "%g"|format(pounds|abs / 1000000) }}m{% elif pounds|abs >= 1000 %}{{ "%g"|format(pounds|abs / 1000) }}k{% else %}{{ "%g"|format(value|abs / 100) }}{% endif %}{% endmacro %}
+
+{% macro legend(keys, total=None) %}
+<ul class="legend">
+  {% for key in keys %}<li><svg width="12" height="12" aria-hidden="true"><rect class="s-{{ key }}" width="12" height="12" rx="3"/></svg> {{ names[key] }}</li>
+  {% endfor %}{% if total %}<li><svg width="18" height="12" aria-hidden="true"><line class="total-line" x1="0" x2="18" y1="6" y2="6"/></svg> {{ total }}</li>{% endif %}
+</ul>
+{% endmacro %}
+
+{% macro columns(chart, label) %}
+<div class="scroll" tabindex="0" role="group" aria-label="{{ label }}">
+<svg class="chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" width="{{ chart.width }}" height="{{ chart.height }}" role="img" aria-label="{{ label }}. The figures are in the table below.">
+  {% for y, value in chart.ticks %}<line class="grid" x1="{{ chart.left }}" x2="{{ chart.width - chart.right }}" y1="{{ y|round(1) }}" y2="{{ y|round(1) }}"/>
+  <text x="{{ chart.left - 8 }}" y="{{ (y + 4)|round(1) }}" text-anchor="end">{{ axis(value) }}</text>
+  {% endfor %}
+  {% for bar in chart.bars %}<rect class="s-{{ bar.series }}" x="{{ bar.x|round(1) }}" y="{{ bar.y|round(1) }}" width="{{ bar.width|round(1) }}" height="{{ bar.height|round(1) }}" rx="2"><title>{{ bar.title }}</title></rect>
+  {% endfor %}
+  <line class="baseline" x1="{{ chart.left }}" x2="{{ chart.width - chart.right }}" y1="{{ chart.baseline|round(1) }}" y2="{{ chart.baseline|round(1) }}"/>
+  {% if chart.line %}<polyline class="total-line" points="{{ chart.points }}"/>
+  {% for x, y, title in chart.line %}<circle class="total-dot" cx="{{ x|round(1) }}" cy="{{ y|round(1) }}" r="4"><title>{{ title }}</title></circle>
+  {% endfor %}{% endif %}
+  {% for x, text in chart.labels %}<text x="{{ x|round(1) }}" y="{{ chart.height - 8 }}" text-anchor="middle">{{ text }}</text>
+  {% endfor %}
+</svg>
+</div>
+{% endmacro %}
+
+{% macro month_select(name, value) %}
+<fieldset><legend>{{ name|capitalize }}</legend>
+  <div class="by-month">
+    <select name="{{ name }}_month" aria-label="{{ name|capitalize }} month">
+      {% for label in month_names %}<option value="{{ loop.index }}"{% if loop.index == value.month %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="{{ name }}_year" aria-label="{{ name|capitalize }} year">
+      {% for year in years %}<option value="{{ year }}"{% if year == value.year %} selected{% endif %}>{{ year }}</option>{% endfor %}
+    </select>
+  </div>
+</fieldset>
+{% endmacro %}
+
+{% block content %}
+<h1>Reports</h1>
+
+<form method="get" action="/reports" class="report-range">
+  {{ month_select("from", range.start) }}
+  {{ month_select("to", range.end) }}
+  <button type="submit" class="primary">Show</button>
+</form>
+
+{% if flow.uncategorised_count %}
+<p class="notice">{{ flow.uncategorised_count }} uncategorised transaction{{ "" if flow.uncategorised_count == 1 else "s" }}
+  ({{ flow.uncategorised_in|money }} in, {{ (-flow.uncategorised_out)|money }} out) not counted as income or spending.
+  <a href="/transactions?category=none&amp;from={{ range.start.isoformat() }}&amp;to={{ range.last_day.isoformat() }}">See them</a>.</p>
+{% endif %}
+
+<section class="card">
+  <h2>Income and spending</h2>
+  {{ legend(["income", "spending"]) }}
+  {{ columns(flow_chart, "Income and spending by month") }}
+  <div class="scroll"><table>
+    <thead><tr><th scope="col">Month</th><th scope="col" class="r">Income</th><th scope="col" class="r">Spending</th><th scope="col" class="r">Net</th><th scope="col" class="r">Moved to tracking accounts</th></tr></thead>
+    <tbody>
+      {% for label in labels %}{% set i = loop.index0 %}<tr><th scope="row">{{ label }}</th>{{ amount(flow.income[i]) }}{{ amount(flow.spending[i]) }}{{ amount(flow.net[i]) }}{{ amount(flow.moved[i]) }}</tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><th scope="row">Total</th>{{ amount(flow.income|sum) }}{{ amount(flow.spending|sum) }}{{ amount(flow.net|sum) }}{{ amount(flow.moved|sum) }}</tr></tfoot>
+  </table></div>
+  <p class="muted">Starting balances aren't income. Money moved to a tracking account, such as a pension or mortgage, isn't spending: it's still yours, or you owe less.</p>
+</section>
+
+<section class="card">
+  <h2>Spending by category</h2>
+  {% if flow.groups %}
+  <div class="scroll" tabindex="0" role="group" aria-label="Spending by category">
+  <svg class="chart" viewBox="0 0 {{ spending_chart.width }} {{ spending_chart.height }}" width="{{ spending_chart.width }}" height="{{ spending_chart.height }}" role="img" aria-label="Spending by category, largest first. The figures are in the table below.">
+    {% for row in spending_chart.rows %}<text x="{{ spending_chart.left - 8 }}" y="{{ row.y + 18 }}" text-anchor="end">{{ row.name }}</text>
+    <rect class="s-spending" x="{{ spending_chart.left }}" y="{{ row.y + 5 }}" width="{{ row.width|round(1) }}" height="18" rx="2"><title>{{ row.name }}: {{ row.value|money }}</title></rect>
+    <text x="{{ (spending_chart.left + row.width + 8)|round(1) }}" y="{{ row.y + 18 }}">{{ row.value|money }}</text>
+    {% endfor %}
+  </svg>
+  </div>
+  <div class="scroll"><table class="budget">
+    <thead><tr><th scope="col">Category</th><th scope="col" class="r">Total</th>{% for label in labels %}<th scope="col" class="r num">{{ label }}</th>{% endfor %}</tr></thead>
+    {% for group in flow.groups %}<tbody>
+      <tr class="group"><th scope="rowgroup">{{ group.name }}</th>{{ amount(group.total) }}{% for value in group.amounts %}{{ amount(value) }}{% endfor %}</tr>
+      {% for category in group.categories %}<tr><th scope="row">{{ category.name }}</th>{{ amount(category.total) }}{% for value in category.amounts %}{{ amount(value) }}{% endfor %}</tr>
+      {% endfor %}
+    </tbody>{% endfor %}
+    <tfoot><tr><th scope="row">Total</th>{{ amount(flow.spending|sum) }}{% for value in flow.spending %}{{ amount(value) }}{% endfor %}</tr></tfoot>
+  </table></div>
+  {% else %}<p class="muted">No spending in these months.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Net worth</h2>
+  {% if has_worth %}
+  <p class="rta {{ "neg" if worth.total[-1] < 0 else "pos" }}"><strong>{{ worth.total[-1]|money }}</strong> {{ labels[-1] }}</p>
+  {{ legend(["cash", "investments", "property", "debt"], "Net worth") }}
+  {{ columns(worth_chart, "Net worth by month") }}
+  <div class="scroll"><table>
+    <thead><tr><th scope="col">Month</th><th scope="col" class="r">Cash and other</th><th scope="col" class="r">Investments</th><th scope="col" class="r">Property</th><th scope="col" class="r">Debt</th><th scope="col" class="r">Net worth</th></tr></thead>
+    <tbody>
+      {% for label in labels %}{% set i = loop.index0 %}<tr><th scope="row">{{ label }}</th>{{ amount(worth.cash[i]) }}{{ amount(worth.investments[i]) }}{{ amount(worth.property[i]) }}{{ amount(worth.debt[i]) }}{{ amount(worth.total[i]) }}</tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted">Balances at the end of each month; this month's are as of today. Any account below zero counts as debt.
+    An account counts from its first transaction, so net worth jumps in the month you add one.</p>
+  {% else %}<p class="muted">No account balances in these months.</p>{% endif %}
+</section>
+{% endblock %}

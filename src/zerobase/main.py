@@ -20,6 +20,7 @@ from .routers import (
     categories,
     imports,
     reconcile,
+    reports,
     scheduled,
     targets,
     transactions,
@@ -116,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         transactions,
         scheduled,
         valuation,
+        reports,
     ):
         app.include_router(module.router)
     return app

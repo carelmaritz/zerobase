@@ -1,14 +1,14 @@
 # TASK-M003: Spending and net-worth reports
 
-**Status**: TODO
+**Status**: IN_PROGRESS
 **Priority**: M - Medium
 **Effort**: M - 3-5 days
-**Assigned**: Unassigned
+**Assigned**: Claude
 **Created**: 2026-10-21
-**Started**:
+**Started**: 2026-11-23
 **Completed**:
 **Branch**: TASK-M003
-**Dependencies**: TASK-H002
+**Dependencies**: TASK-H002, TASK-M008
 
 ---
 
@@ -21,6 +21,18 @@ Add a reports page showing where money goes and how net worth changes over time.
 ## Background
 
 All the data exists, but there's no view beyond the current month's budget. Depends on TASK-H002 so transfers aren't counted as spending or income.
+
+---
+
+## Agreed with Carel (2026-11-23)
+
+1. Market value changes affect only net worth. Starting balances aren't income.
+2. Starting balances get a real marker (`transactions.is_starting`, migration `0012`); existing rows are matched by payee. CT 161's "Starting odd" row (3) needs a one-off fix, only with Carel's OK.
+3. Budget-to-tracking transfers are neither income nor spending: a separate "Moved to tracking accounts" column, net of money coming back.
+4. Uncategorised rows are left out, with a note and link. They count in net worth.
+5. Net worth is split per account and month end: below zero is debt; otherwise investments, or cash and other. Carel then asked for property (TASK-M008), which Claude made its own part.
+
+Charts are server-drawn SVG, as below; Carel was told and didn't object. Reconciliation adjustments count as income, as in the budget. The current month's net worth is as of today; its income and spending cover the whole month.
 
 ---
 
@@ -37,10 +49,10 @@ Constraints:
 - Every chart has an accessible table alongside it.
 
 ### Success Criteria
-- [ ] Figures match hand-calculated totals from test fixtures
-- [ ] Transfers excluded from spending and income
+- [x] Figures match hand-calculated totals from test fixtures
+- [x] Transfers excluded from spending and income
 - [ ] Works in light and dark colour schemes and at phone width
-- [ ] Page loads in under 500 ms with 5 years of data (~10,000 transactions) on SQLite
+- [x] Page loads in under 500 ms with 5 years of data (~10,000 transactions) on SQLite
 
 ### Out of Scope
 
@@ -61,40 +73,42 @@ Constraints:
 ## Implementation Plan
 
 ### Phase 1
-- [ ] Report query functions with unit tests
+- [x] Report query functions with unit tests
 ### Phase 2
-- [ ] SVG chart macros, reports page, navigation link
+- [x] SVG chart macros, reports page, navigation link
 
 ---
 
 ## Work Completed
 
-*Fill when IN_PROGRESS or DONE.*
+2026-11-23 (branch `TASK-M003`): migration `0012`, `reports.py` (figures), `charts.py` (SVG geometry), `routers/reports.py`, `reports.html`, the menu link, and `tests/test_reports.py`. 377 pass on SQLite (1 skipped), 378 on PostgreSQL. 10,000 rows over five years took about 100 ms on SQLite.
+
+**Not done:** looking at the page (light, dark, phone), code review, testing by Carel on CT 161.
 
 ---
 
 ## Failed Approaches
 
-None yet.
+- **Rendering the page in a headless Chromium container (root, `--no-sandbox`):** blocked by the auto-mode classifier. Not worked around.
 
 ---
 
 ## Testing
 
 ### Test Cases
-- [ ] Spending by category over a range spanning a year end
-- [ ] Net worth includes tracking accounts
-- [ ] Refunds (positive categorised amounts) reduce spending
-- [ ] Empty range
+- [x] Spending by category over a range spanning a year end
+- [x] Net worth includes tracking accounts
+- [x] Refunds (positive categorised amounts) reduce spending
+- [x] Empty range
 
 ---
 
 ## Related Tasks
 
-- **Depends On**: TASK-H002
+- **Depends On**: TASK-H002, TASK-M008 (the branch is built on TASK-M008)
 - **Blocks**: None
 - **Related**: TASK-L002
 
 ---
 
-*Last Updated: 2026-10-21 by Claude*
+*Last Updated: 2026-11-23 by Claude*

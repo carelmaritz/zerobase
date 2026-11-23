@@ -28,8 +28,7 @@ The arithmetic lives in [`src/zerobase/budget.py`](src/zerobase/budget.py) and i
 - Cleared status and reconciliation: tick transactions off against the bank, see cleared and uncleared balances, and reconcile an account against the bank's balance (with an adjustment for any difference, as in YNAB). Imported rows start cleared
 - Category management: rename, reorder, move between groups, hide, and delete by merging into another category (with a preview of any change to Ready to Assign)
 - Several users on one install, each with fully separate data
-
-Not there yet: reports. See the roadmap.
+- Reports over any range of months: income and spending, spending by category, and net worth split into cash, investments, property and debt
 
 ## Quick start (Docker)
 
@@ -147,7 +146,7 @@ tests/            unit tests for the maths, plus end-to-end tests of the web app
 - [x] Database migrations (Alembic)
 - [ ] Targets and goals
 - [ ] Scheduled and recurring transactions
-- [ ] Spending and net-worth reports
+- [x] Spending and net-worth reports
 - [ ] Trusted-proxy support for client addresses
 
 ## Licence

@@ -416,3 +416,42 @@ def test_0011_coin_and_amount_held_are_exact_and_downgrade_keeps_accounts(engine
         assert connection.execute(text("SELECT count(*) FROM accounts")).scalar() == 1
     columns = {c["name"] for c in inspect(engine).get_columns("accounts")}
     assert not {"symbol", "quantity"} & columns
+
+
+def test_0012_marks_existing_starting_balances(engine):
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0011")
+        for statement in (
+            "INSERT INTO users (email, password_hash, created_at) "
+            "VALUES ('a@b.c', 'x', '2026-01-01')",
+            "INSERT INTO accounts (user_id, name, kind, on_budget) "
+            "SELECT id, 'A', 'checking', :t FROM users",
+            "INSERT INTO category_groups (user_id, name, sort_order) SELECT id, 'G', 0 FROM users",
+            "INSERT INTO categories (user_id, name, kind, sort_order) "
+            "SELECT id, 'In', 'inflow', 0 FROM users",
+            "INSERT INTO categories (user_id, group_id, name, kind, sort_order) "
+            "SELECT user_id, id, 'Food', 'standard', 0 FROM category_groups",
+        ):
+            connection.execute(text(statement), {"t": True} if ":t" in statement else {})
+        for payee, memo, category in (
+            ("Starting balance", "inflow", "(SELECT id FROM categories WHERE kind='inflow')"),
+            ("Starting balance", "tracking", "NULL"),
+            ("Starting balance", "food", "(SELECT id FROM categories WHERE kind='standard')"),
+            ("Pay", "pay", "(SELECT id FROM categories WHERE kind='inflow')"),
+        ):
+            connection.execute(
+                text(
+                    "INSERT INTO transactions (user_id, account_id, category_id, date, payee, "
+                    f"memo, amount) SELECT user_id, id, {category}, '2026-01-01', :p, :m, 100 "
+                    "FROM accounts"
+                ),
+                {"p": payee, "m": memo},
+            )
+    upgrade_to_head(engine)
+    with engine.begin() as connection:
+        marked = connection.execute(
+            text("SELECT memo FROM transactions WHERE is_starting = :t"), {"t": True}
+        ).scalars()
+        assert set(marked) == {"inflow", "tracking"}
+        command.downgrade(alembic_config(connection), "0011")
+        assert connection.execute(text("SELECT count(*) FROM transactions")).scalar() == 4
