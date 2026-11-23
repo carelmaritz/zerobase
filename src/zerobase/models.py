@@ -43,6 +43,10 @@ CREDIT_CARD = "credit_card"  # Account.kind of a credit card: always a budget ac
 # Investment kinds are always tracking accounts, valued with "Update value" (TASK-M007).
 CRYPTO, PENSION, ISA_STOCKS = "crypto", "pension", "isa_stocks"
 INVESTMENT_KINDS = (CRYPTO, PENSION, ISA_STOCKS)
+# A home or other property (TASK-M008): not an investment, but valued the same way.
+PROPERTY = "property"
+# Kinds that are always tracking accounts, whatever the add form says.
+TRACKING_KINDS = (*INVESTMENT_KINDS, PROPERTY)
 
 
 class ExactDecimal(TypeDecorator):

@@ -18,9 +18,10 @@ from ..models import (
     CLEARED,
     CREDIT_CARD,
     CRYPTO,
-    INVESTMENT_KINDS,
     ISA_STOCKS,
     PENSION,
+    PROPERTY,
+    TRACKING_KINDS,
     Account,
     Category,
     ImportMapping,
@@ -41,6 +42,7 @@ ACCOUNT_KINDS = {
     CRYPTO: "Crypto",
     PENSION: "Pension",
     ISA_STOCKS: "Stocks & Shares ISA",
+    PROPERTY: "Property",
     "other": "Other",
     CREDIT_CARD: "Credit card",
 }
@@ -110,8 +112,8 @@ def add_account(
         return _page(request, db, user, str(exc), 400)
 
     card = kind == CREDIT_CARD
-    # Investments are always tracking accounts: a market move must never reach the budget.
-    budget = card or (on_budget is not None and kind not in INVESTMENT_KINDS)
+    # Investments and property are always tracking: a change in value must never reach the budget.
+    budget = card or (on_budget is not None and kind not in TRACKING_KINDS)
     account = Account(
         user_id=user.id, name=name, kind=kind, on_budget=budget, symbol=coin, quantity=held
     )
@@ -173,7 +175,7 @@ def _edit_page(
         "balance": _balance(db, account),
         "has_transactions": _has_transactions(db, account),
         "kinds": ACCOUNT_KINDS,
-        "investment_kinds": INVESTMENT_KINDS,
+        "tracking_kinds": TRACKING_KINDS,
         "error": error,
         "close_refused": close_refused,
     }
@@ -218,7 +220,7 @@ def edit_account(
     if kind not in ACCOUNT_KINDS or (kind == CREDIT_CARD) != account.is_credit_card:
         error = "Choose a valid account type."
         return _edit_page(request, db, user, account, error, 400, name=name)
-    if account.on_budget and kind in INVESTMENT_KINDS:
+    if account.on_budget and kind in TRACKING_KINDS:
         error = (
             f"{ACCOUNT_KINDS[kind]} accounts are always tracking only, and a budget account "
             f"can't leave the budget. Add a new {ACCOUNT_KINDS[kind]} account instead."

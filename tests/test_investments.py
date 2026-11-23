@@ -86,7 +86,7 @@ def ready(db, user) -> int:
     return build_budget(db, user.id, month_start(TODAY)).ready_to_assign
 
 
-@pytest.mark.parametrize("kind", ["crypto", "pension", "isa_stocks"])
+@pytest.mark.parametrize("kind", ["crypto", "pension", "isa_stocks", "property"])
 def test_investment_accounts_are_always_tracking(client, db, me, kind):
     before = ready(db, me)
     response, account = add(client, db, "Invest", kind, opening="5000", on_budget=True)
@@ -290,3 +290,33 @@ def test_contributions_are_transfers_that_the_budget_counts(client, db, me, cryp
         if ln.category.id == groceries
     )
     assert line.activity == -10000
+
+
+# --- property (TASK-M008) --------------------------------------------------------------
+
+
+def test_property_estimate_is_updated_without_touching_the_budget(client, db, me):
+    before = ready(db, me)
+    _, home = add(client, db, "Home", "property", opening="350000")
+    assert "Property" in client.get("/accounts").text
+    response = client.post(
+        f"/accounts/{home.id}/value",
+        data={"value": "362,500", "when": TODAY.isoformat()},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    amounts = db.scalars(
+        select(Transaction.amount).where(Transaction.account_id == home.id).order_by(Transaction.id)
+    ).all()
+    assert amounts == [35_000_000, 1_250_000]
+    assert ready(db, me) == before
+
+
+def test_a_budget_account_cant_become_a_property(client, db, me):
+    current = db.scalar(select(Account).where(Account.name == "Current"))
+    assert 'value="property"' not in client.get(f"/accounts/{current.id}/edit").text
+    response = client.post(
+        f"/accounts/{current.id}/edit", data={"name": "Current", "kind": "property"}
+    )
+    assert response.status_code == 400
+    assert "Property accounts are always tracking only" in response.text

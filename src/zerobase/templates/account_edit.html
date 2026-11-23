@@ -21,7 +21,7 @@
     <label>Name <input type="text" name="name" maxlength="80" required value="{{ name }}"></label>
     <label>Type
       <select name="kind">
-        {% for key, label in kinds.items() if (key == "credit_card") == account.is_credit_card and not (account.on_budget and key in investment_kinds) %}<option value="{{ key }}"{% if key == account.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        {% for key, label in kinds.items() if (key == "credit_card") == account.is_credit_card and not (account.on_budget and key in tracking_kinds) %}<option value="{{ key }}"{% if key == account.kind %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </label>
     {% if not account.on_budget %}
